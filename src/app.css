@@ -1,1 +1,1321 @@
 @import 'tailwindcss';
+
+@theme {
+	/* 蒸汽波核心配色 */
+	--vwave-pink: #ff71ce;
+	--vwave-cyan: #01cdfe;
+	--vwave-mint: #05ffa1;
+	--vwave-lav: #b967ff;
+	--vwave-sun: #fffb96;
+
+	/* 基礎排版 */
+	--font-display: 'Noto Serif SC', 'Bodoni Moda', serif;
+	--font-body: 'Noto Sans SC', 'Inter', sans-serif;
+	--font-retro: 'MS Gothic', 'Press Start 2P', monospace;
+
+	/* 網格 */
+	--grid-gap: 2.5%;
+	--grid-columns: 12;
+
+	/* 陰影效果 */
+	--glow-effect: 0 0 6px var(--vwave-pink);
+	--card-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+
+	/* 動畫持續時間 */
+	--animation-duration: 0.5s;
+	--animation-delay-unit: 120ms;
+
+	/* 邊框圓角 */
+	--radius-none: 0;
+	--radius-xs: 0.125rem;
+	--radius-sm: 0.25rem;
+	--radius-md: 0.375rem;
+	--radius-lg: 0.5rem;
+	--radius-xl: 0.75rem;
+	--radius-2xl: 1rem;
+	--radius-3xl: 1.5rem;
+	--radius-full: 9999px;
+
+	/* 陰影效果 */
+	--shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+	--shadow-default: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+	--shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+	--shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+	--shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+	--shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+	--shadow-inner: inset 0 2px 4px 0 rgb(0 0 0 / 0.05);
+	--shadow-none: none;
+
+	/* Tailwind 擴展顏色 */
+	--color-white: 255 255 255;
+	--color-black: 0 0 0;
+
+	/* 動畫效果 */
+	--animate-none: none;
+	--animate-fade-up: fade-in-up var(--animation-duration) ease-out both;
+	--animate-spin: spin 1s linear infinite;
+	--animate-ping: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;
+	--animate-pulse: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+	--animate-bounce: bounce 1s infinite;
+}
+
+/* 註冊顏色自定義屬性 */
+@property --vwave-pink {
+	syntax: '<color>';
+	inherits: false;
+	initial-value: #ff71ce;
+}
+@property --vwave-cyan {
+	syntax: '<color>';
+	inherits: false;
+	initial-value: #01cdfe;
+}
+@property --vwave-mint {
+	syntax: '<color>';
+	inherits: false;
+	initial-value: #05ffa1;
+}
+@property --vwave-lav {
+	syntax: '<color>';
+	inherits: false;
+	initial-value: #b967ff;
+}
+@property --vwave-sun {
+	syntax: '<color>';
+	inherits: false;
+	initial-value: #fffb96;
+}
+
+/* 基礎樣式 */
+@utility base-styles {
+	/* 設置全局基礎樣式 */
+	body {
+		background-color: #111827; /* 相當於舊版的 gray-900 */
+		color: white;
+		font-family: var(--font-body);
+		color-scheme: dark;
+	}
+
+	/* 漸層 OKLCH 色彩混合（自動回落相容性） */
+	.bg-vwave-gradient {
+		background: color-mix(in oklch, var(--vwave-pink), var(--vwave-cyan));
+		background: linear-gradient(
+			to top right,
+			var(--vwave-pink),
+			var(--vwave-lav),
+			var(--vwave-cyan)
+		);
+	}
+
+	/* VHS 掃描線 */
+	.vhs-scanlines {
+		background-image: repeating-linear-gradient(
+			180deg,
+			rgba(255, 255, 255, 0.1) 0 2px,
+			transparent 2px 4px
+		);
+		mix-blend-mode: color-dodge;
+		opacity: 0.12;
+		pointer-events: none;
+	}
+
+	/* 格子地面背景 */
+	.grid-floor {
+		background-size: 30px 30px;
+		background-image:
+			linear-gradient(to right, rgba(255, 255, 255, 0.1) 1px, transparent 1px),
+			linear-gradient(to bottom, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+		opacity: 0.2;
+		mix-blend-mode: overlay;
+		pointer-events: none;
+	}
+}
+
+/* 蒸汽波卡片 */
+@utility vwave-card {
+	position: relative;
+	display: grid;
+	grid-template-columns: repeat(12, 1fr);
+	gap: var(--grid-gap);
+	aspect-ratio: 1 / 1;
+	padding: 1.5rem;
+	border-radius: 2rem;
+	overflow: hidden;
+	background-image: linear-gradient(
+		to top right,
+		var(--vwave-pink),
+		var(--vwave-lav),
+		var(--vwave-cyan)
+	);
+	color: var(--vwave-sun);
+	box-shadow: var(--glow-effect), var(--card-shadow);
+	animation: fade-in-up var(--animation-duration) ease-out both;
+}
+
+/* 標題風格 */
+@utility vwave-title {
+	font-family: var(--font-display);
+	font-size: 2.25rem;
+	line-height: 2.5rem;
+	font-weight: 700;
+	letter-spacing: -0.02em;
+	text-shadow: 0 0 6px var(--vwave-pink);
+}
+
+@utility vwave-subtitle {
+	font-family: var(--font-body);
+	font-size: 1.125rem;
+	line-height: 1.75rem;
+	margin-top: 0.25rem;
+}
+
+@utility vwave-quote {
+	font-family: var(--font-retro);
+	font-size: 0.875rem;
+	font-style: italic;
+	margin-top: 1rem;
+	color: var(--vwave-mint);
+}
+
+@utility vwave-list {
+	margin-top: 1.5rem;
+	list-style-type: disc;
+	list-style-position: inside;
+}
+
+@utility vwave-list-item-marker {
+	color: var(--vwave-sun);
+}
+
+@utility vwave-note {
+	padding: 0.75rem;
+	border-radius: 0.5rem;
+	font-size: 0.75rem;
+	line-height: 1rem;
+	background-color: rgba(255, 255, 255, 0.05);
+	backdrop-filter: blur(4px);
+}
+
+@utility vwave-hover-effect {
+	transition-property: all;
+	transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+	transition-duration: 300ms;
+
+	&:hover {
+		transform: translateY(-2px);
+		box-shadow: 0 0 10px var(--vwave-pink);
+	}
+}
+
+/* Dashboard 特定樣式 */
+@layer utilities {
+	/* 預設陰影效果 */
+	.drop-shadow-glow {
+		filter: drop-shadow(0 0 6px var(--vwave-pink));
+	}
+
+	/* 透視網格效果 */
+	.perspective-effect {
+		transition: transform 0.8s cubic-bezier(0.23, 1, 0.32, 1);
+		transform-style: preserve-3d;
+	}
+
+	/* 賽博朋克線條 */
+	.cyberpunk-line {
+		position: absolute;
+		bottom: 0;
+		left: 0;
+		width: 100%;
+		height: 0.25rem;
+		background-image: linear-gradient(
+			to right,
+			var(--vwave-pink),
+			var(--vwave-cyan),
+			var(--vwave-mint)
+		);
+		box-shadow: 0 0 12px var(--vwave-cyan);
+		animation: glow-pulse 2s infinite;
+	}
+
+	/* 在線標籤 */
+	.online-tag {
+		font-family: var(--font-retro);
+		color: var(--vwave-mint);
+		border: 1px solid var(--vwave-mint);
+		border-radius: 0.25rem;
+		padding: 0.25rem 0.5rem;
+		text-shadow: 0 0 8px var(--vwave-mint);
+		box-shadow: 0 0 6px var(--vwave-mint);
+		animation: pulse 2s infinite;
+		background-color: rgba(5, 255, 161, 0.1);
+	}
+
+	/* 錢包地址 */
+	.wallet-address {
+		background-color: rgba(0, 0, 0, 0.3);
+		border-radius: 0.5rem;
+		padding: 0.25rem 0.75rem;
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		transition: all 0.3s ease;
+	}
+
+	.wallet-address:hover {
+		border-color: var(--vwave-sun);
+		box-shadow: 0 0 8px rgba(255, 251, 150, 0.3);
+	}
+
+	/* 面板發光 */
+	.panel-glow {
+		position: absolute;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		left: 0;
+		opacity: 0.2;
+		background: radial-gradient(circle at center, var(--vwave-lav) 0%, transparent 70%);
+		z-index: -1;
+		animation: glow-pulse 4s infinite alternate;
+	}
+
+	/* 數字時間 */
+	.digital-time {
+		color: var(--vwave-sun);
+		background-color: rgba(0, 0, 0, 0.3);
+		border-radius: 0.5rem;
+		padding: 0.25rem 0.75rem;
+		font-size: 1.125rem;
+		text-shadow: 0 0 8px var(--vwave-sun);
+		border: 1px solid rgba(255, 251, 150, 0.3);
+	}
+
+	/* 資產圖標 */
+	.asset-icon {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 3rem;
+		height: 3rem;
+		border-radius: 0.75rem;
+		background-image: linear-gradient(to bottom right, var(--vwave-pink), var(--vwave-lav));
+		font-size: 1.5rem;
+		text-shadow: 0 0 8px white;
+		box-shadow: 0 0 15px rgba(255, 113, 206, 0.3);
+	}
+
+	/* 資產卡片 */
+	.asset-card {
+		transition: all 0.3s ease;
+		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+		border: 1px solid rgba(255, 255, 255, 0.15);
+		background-color: rgba(0, 0, 0, 0.7);
+	}
+
+	.asset-card:hover {
+		border-color: var(--vwave-cyan);
+		transform: translateY(-4px);
+		box-shadow: 0 0 20px rgba(1, 205, 254, 0.3);
+	}
+
+	/* 主面板 */
+	.main-panel {
+		box-shadow:
+			0 8px 32px rgba(0, 0, 0, 0.4),
+			0 0 20px rgba(185, 103, 255, 0.15);
+		transition:
+			transform 0.5s cubic-bezier(0.23, 1, 0.32, 1),
+			box-shadow 0.5s ease;
+	}
+
+	.main-panel:hover {
+		box-shadow:
+			0 8px 40px rgba(0, 0, 0, 0.5),
+			0 0 25px rgba(185, 103, 255, 0.25);
+	}
+
+	/* 次要面板 */
+	.secondary-panel {
+		box-shadow:
+			0 8px 32px rgba(0, 0, 0, 0.4),
+			0 0 15px rgba(1, 205, 254, 0.15);
+		transition:
+			transform 0.5s cubic-bezier(0.23, 1, 0.32, 1),
+			box-shadow 0.5s ease;
+	}
+
+	.secondary-panel:hover {
+		box-shadow:
+			0 8px 40px rgba(0, 0, 0, 0.5),
+			0 0 20px rgba(1, 205, 254, 0.25);
+	}
+
+	/* 發光文字 */
+	.glow-text {
+		text-shadow: 0 0 8px currentColor;
+		position: relative;
+	}
+
+	/* 價格高亮 */
+	.price-highlight {
+		color: var(--vwave-mint);
+		text-shadow: 0 0 10px var(--vwave-mint);
+		font-weight: bold;
+		position: relative;
+		z-index: 2;
+	}
+
+	.price-highlight::after {
+		content: '';
+		position: absolute;
+		top: -2px;
+		left: -2px;
+		right: -2px;
+		bottom: -2px;
+		background-color: rgba(5, 255, 161, 0.1);
+		border-radius: 4px;
+		z-index: -1;
+	}
+
+	/* 正負值指示 */
+	.positive {
+		color: var(--vwave-mint);
+		text-shadow: 0 0 8px var(--vwave-mint);
+		font-weight: bold;
+	}
+
+	.negative {
+		color: var(--vwave-pink);
+		text-shadow: 0 0 8px var(--vwave-pink);
+	}
+
+	/* NFT 預留位 */
+	.nft-placeholder {
+		aspect-ratio: 1 / 1;
+		border-radius: 0.5rem;
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		background-image: linear-gradient(
+			to bottom right,
+			rgba(185, 103, 255, 0.2),
+			rgba(1, 205, 254, 0.2)
+		);
+		transition: all 0.3s ease;
+	}
+
+	/* NFT 項目 */
+	.nft-item {
+		aspect-ratio: 1 / 1;
+		border-radius: 0.5rem;
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		background-size: cover;
+		background-position: center;
+		background-color: rgba(0, 0, 0, 0.3);
+		position: relative;
+		transition: all 0.3s ease;
+		overflow: hidden;
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+	}
+
+	.nft-placeholder-text {
+		position: absolute;
+		bottom: 0;
+		left: 0;
+		right: 0;
+		padding: 0.5rem;
+		font-size: 0.75rem;
+		background-color: rgba(0, 0, 0, 0.6);
+		color: var(--vwave-sun);
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		overflow: hidden;
+		text-shadow: 0 0 4px var(--vwave-sun);
+	}
+
+	.nft-placeholder:hover,
+	.nft-item:hover {
+		border-color: var(--vwave-pink);
+		transform: scale(1.05);
+		box-shadow: 0 0 20px rgba(255, 113, 206, 0.3);
+	}
+
+	/* 代幣統計 */
+	.token-stats {
+		transition: all 0.3s ease;
+		box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+		background-color: rgba(0, 0, 0, 0.8);
+		border: 1px solid rgba(255, 255, 255, 0.2);
+	}
+
+	.token-stats:hover {
+		border-color: var(--vwave-mint);
+		transform: translateX(4px);
+		box-shadow:
+			0 4px 15px rgba(0, 0, 0, 0.3),
+			0 0 10px rgba(5, 255, 161, 0.1);
+	}
+
+	/* 交易項目 */
+	.transaction-item {
+		transition: all 0.3s ease;
+		box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+	}
+
+	.transaction-item:hover {
+		border-color: var(--vwave-mint);
+		transform: translateX(4px);
+		box-shadow:
+			0 4px 15px rgba(0, 0, 0, 0.3),
+			0 0 10px rgba(5, 255, 161, 0.1);
+	}
+
+	/* 代幣類型 */
+	.token-type {
+		padding: 0.25rem 0.75rem;
+		border-radius: 0.5rem;
+		font-size: 0.875rem;
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+		font-weight: bold;
+	}
+
+	.token-type.native {
+		color: var(--vwave-mint);
+		background-color: rgba(5, 255, 161, 0.2);
+		border: 1px solid rgba(5, 255, 161, 0.3);
+		text-shadow: 0 0 4px var(--vwave-mint);
+	}
+
+	.token-type.erc20 {
+		color: var(--vwave-cyan);
+		background-color: rgba(1, 205, 254, 0.2);
+		border: 1px solid rgba(1, 205, 254, 0.3);
+		text-shadow: 0 0 4px var(--vwave-cyan);
+	}
+
+	/* 交易類型 */
+	.transaction-type {
+		padding: 0.25rem 0.75rem;
+		border-radius: 0.5rem;
+		font-size: 0.875rem;
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+	}
+
+	.transaction-type.send {
+		color: var(--vwave-pink);
+		background-color: rgba(255, 113, 206, 0.2);
+		border: 1px solid rgba(255, 113, 206, 0.3);
+		text-shadow: 0 0 4px var(--vwave-pink);
+	}
+
+	.transaction-type.receive {
+		color: var(--vwave-mint);
+		background-color: rgba(5, 255, 161, 0.2);
+		border: 1px solid rgba(5, 255, 161, 0.3);
+		text-shadow: 0 0 4px var(--vwave-mint);
+	}
+
+	/* 載入動畫 */
+	.loading-spinner {
+		width: 40px;
+		height: 40px;
+		border: 4px solid rgba(255, 255, 255, 0.1);
+		border-left-color: var(--vwave-cyan);
+		border-radius: 50%;
+		margin: 0 auto;
+		animation: spin 1s linear infinite;
+	}
+
+	/* 元素淡入動畫 */
+	.fade-up {
+		animation: fade-in-up 0.5s ease-out both;
+	}
+
+	/* 減少動態效果 */
+	@media (prefers-reduced-motion: reduce) {
+		.animate-fade-up {
+			animation: none !important;
+			transform: none !important;
+		}
+
+		.vwave-hover-effect {
+			transition: none !important;
+		}
+	}
+
+	/* 響應式調整 */
+	@media (max-width: 640px) {
+		.vwave-card {
+			aspect-ratio: auto;
+			min-height: 400px;
+			grid-template-columns: 1fr;
+		}
+
+		.change-indicator {
+			margin-top: 0.5rem;
+			font-size: 1.125rem;
+		}
+	}
+
+	/* 延遲階梯式載入 */
+	.delay-card-1 {
+		animation-delay: calc(var(--animation-delay-unit) * 1);
+	}
+	.delay-card-2 {
+		animation-delay: calc(var(--animation-delay-unit) * 2);
+	}
+	.delay-card-3 {
+		animation-delay: calc(var(--animation-delay-unit) * 3);
+	}
+	.delay-card-4 {
+		animation-delay: calc(var(--animation-delay-unit) * 4);
+	}
+}
+
+/* 關鍵影格定義 */
+@keyframes fade-in-up {
+	0% {
+		opacity: 0;
+		transform: translateY(20px);
+	}
+	100% {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@keyframes spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+@keyframes ping {
+	75%,
+	100% {
+		transform: scale(2);
+		opacity: 0;
+	}
+}
+
+@keyframes pulse {
+	0%,
+	100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0.6;
+	}
+}
+
+@keyframes bounce {
+	0%,
+	100% {
+		transform: translateY(-25%);
+		animation-timing-function: cubic-bezier(0.8, 0, 1, 1);
+	}
+	50% {
+		transform: translateY(0);
+		animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+	}
+}
+
+/* Dashboard 專用動畫 */
+@keyframes gradient-shift {
+	0% {
+		background-position: 0% 50%;
+	}
+	50% {
+		background-position: 100% 50%;
+	}
+	100% {
+		background-position: 0% 50%;
+	}
+}
+
+@keyframes glow-pulse {
+	0%,
+	100% {
+		opacity: 0.2;
+		box-shadow: 0 0 10px currentColor;
+	}
+	50% {
+		opacity: 0.3;
+		box-shadow: 0 0 20px currentColor;
+	}
+}
+
+/* =============================================================================
+ * 儀表板 (Dashboard) 組件樣式
+ * ============================================================================= */
+
+/* 透視與 3D 效果 */
+.perspective-effect {
+	transition: transform 0.8s cubic-bezier(0.23, 1, 0.32, 1);
+	transform-style: preserve-3d;
+}
+
+/* 賽博朋克線條效果 */
+.cyberpunk-line {
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	width: 100%;
+	height: 0.25rem;
+	background-image: linear-gradient(
+		to right,
+		var(--vwave-pink),
+		var(--vwave-cyan),
+		var(--vwave-mint)
+	);
+	box-shadow: 0 0 12px var(--vwave-cyan);
+	animation: glow-pulse 2s infinite;
+}
+
+/* 系統狀態標籤 */
+.online-tag {
+	font-family: var(--font-retro);
+	color: var(--vwave-mint);
+	border: 1px solid var(--vwave-mint);
+	border-radius: var(--radius-sm);
+	padding: 0.25rem 0.5rem;
+	text-shadow: 0 0 8px var(--vwave-mint);
+	box-shadow: 0 0 6px var(--vwave-mint);
+	animation: pulse 2s infinite;
+	background-color: rgba(5, 255, 161, 0.1);
+}
+
+/* 錢包地址顯示 */
+.wallet-address {
+	background-color: rgba(0, 0, 0, 0.3);
+	border-radius: var(--radius-lg);
+	padding: 0.25rem 0.75rem;
+	border: 1px solid rgba(255, 255, 255, 0.1);
+	transition: all 0.3s ease;
+}
+
+.wallet-address:hover {
+	border-color: var(--vwave-sun);
+	box-shadow: 0 0 8px rgba(255, 251, 150, 0.3);
+}
+
+/* 面板發光效果 */
+.panel-glow {
+	position: absolute;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	left: 0;
+	opacity: 0.2;
+	background: radial-gradient(circle at center, var(--vwave-lav) 0%, transparent 70%);
+	z-index: -1;
+	animation: glow-pulse 4s infinite alternate;
+}
+
+/* 數字時鐘 */
+.digital-time {
+	color: var(--vwave-sun);
+	background-color: rgba(0, 0, 0, 0.3);
+	border-radius: var(--radius-lg);
+	padding: 0.25rem 0.75rem;
+	font-size: 1.125rem;
+	text-shadow: 0 0 8px var(--vwave-sun);
+	border: 1px solid rgba(255, 251, 150, 0.3);
+}
+
+/* 背景漸變 */
+.bg-gradient {
+	background-image: linear-gradient(
+		to right,
+		var(--vwave-pink),
+		var(--vwave-lav),
+		var(--vwave-cyan)
+	);
+	animation: gradient-shift 10s infinite alternate;
+}
+
+/* 資產圖標 */
+.asset-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 3rem;
+	height: 3rem;
+	border-radius: 0.75rem;
+	background-image: linear-gradient(to bottom right, var(--vwave-pink), var(--vwave-lav));
+	font-size: 1.5rem;
+	text-shadow: 0 0 8px white;
+	box-shadow: 0 0 15px rgba(255, 113, 206, 0.3);
+}
+
+/* 資產卡片樣式 */
+.asset-card {
+	transition: all 0.3s ease;
+	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+	border: 1px solid rgba(255, 255, 255, 0.15);
+	background-color: rgba(0, 0, 0, 0.7);
+}
+
+.asset-card:hover {
+	border-color: var(--vwave-cyan);
+	transform: translateY(-4px);
+	box-shadow: 0 0 20px rgba(1, 205, 254, 0.3);
+}
+
+/* 主面板樣式 */
+.main-panel {
+	box-shadow:
+		0 8px 32px rgba(0, 0, 0, 0.4),
+		0 0 20px rgba(185, 103, 255, 0.15);
+	transition:
+		transform 0.5s cubic-bezier(0.23, 1, 0.32, 1),
+		box-shadow 0.5s ease;
+}
+
+.main-panel:hover {
+	box-shadow:
+		0 8px 40px rgba(0, 0, 0, 0.5),
+		0 0 25px rgba(185, 103, 255, 0.25);
+}
+
+/* 次要面板樣式 */
+.secondary-panel {
+	box-shadow:
+		0 8px 32px rgba(0, 0, 0, 0.4),
+		0 0 15px rgba(1, 205, 254, 0.15);
+	transition:
+		transform 0.5s cubic-bezier(0.23, 1, 0.32, 1),
+		box-shadow 0.5s ease;
+}
+
+.secondary-panel:hover {
+	box-shadow:
+		0 8px 40px rgba(0, 0, 0, 0.5),
+		0 0 20px rgba(1, 205, 254, 0.25);
+}
+
+/* 文字發光效果 */
+.glow-text {
+	text-shadow: 0 0 8px currentColor;
+	position: relative;
+}
+
+/* 價格高亮顯示 */
+.price-highlight {
+	color: var(--vwave-mint);
+	text-shadow: 0 0 10px var(--vwave-mint);
+	font-weight: bold;
+	position: relative;
+	z-index: 2;
+}
+
+.price-highlight::after {
+	content: '';
+	position: absolute;
+	top: -2px;
+	left: -2px;
+	right: -2px;
+	bottom: -2px;
+	background-color: rgba(5, 255, 161, 0.1);
+	border-radius: 4px;
+	z-index: -1;
+}
+
+/* 正負值顯示顏色 */
+.positive {
+	color: var(--vwave-mint);
+	text-shadow: 0 0 8px var(--vwave-mint);
+	font-weight: bold;
+}
+
+.negative {
+	color: var(--vwave-pink);
+	text-shadow: 0 0 8px var(--vwave-pink);
+}
+
+/* NFT 相關樣式 */
+.nft-placeholder {
+	aspect-ratio: 1 / 1;
+	border-radius: var(--radius-lg);
+	border: 1px solid rgba(255, 255, 255, 0.1);
+	background-image: linear-gradient(
+		to bottom right,
+		rgba(185, 103, 255, 0.2),
+		rgba(1, 205, 254, 0.2)
+	);
+	transition: all 0.3s ease;
+}
+
+.nft-item {
+	aspect-ratio: 1 / 1;
+	border-radius: var(--radius-lg);
+	border: 1px solid rgba(255, 255, 255, 0.1);
+	background-size: cover;
+	background-position: center;
+	background-color: rgba(0, 0, 0, 0.3);
+	position: relative;
+	transition: all 0.3s ease;
+	overflow: hidden;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.nft-placeholder-text {
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	padding: 0.5rem;
+	font-size: 0.75rem;
+	background-color: rgba(0, 0, 0, 0.6);
+	color: var(--vwave-sun);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	overflow: hidden;
+	text-shadow: 0 0 4px var(--vwave-sun);
+}
+
+.nft-placeholder:hover,
+.nft-item:hover {
+	border-color: var(--vwave-pink);
+	transform: scale(1.05);
+	box-shadow: 0 0 20px rgba(255, 113, 206, 0.3);
+}
+
+/* 交易和代幣項目 */
+.transaction-item,
+.token-stats {
+	transition: all 0.3s ease;
+	box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+.transaction-item:hover,
+.token-stats:hover {
+	border-color: var(--vwave-mint);
+	transform: translateX(4px);
+	box-shadow:
+		0 4px 15px rgba(0, 0, 0, 0.3),
+		0 0 10px rgba(5, 255, 161, 0.1);
+}
+
+.transaction-type,
+.token-type {
+	padding: 0.25rem 0.75rem;
+	border-radius: var(--radius-lg);
+	font-size: 0.875rem;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.transaction-type.send {
+	color: var(--vwave-pink);
+	background-color: rgba(255, 113, 206, 0.2);
+	border: 1px solid rgba(255, 113, 206, 0.3);
+	text-shadow: 0 0 4px var(--vwave-pink);
+}
+
+.transaction-type.receive,
+.token-type.native {
+	color: var(--vwave-mint);
+	background-color: rgba(5, 255, 161, 0.2);
+	border: 1px solid rgba(5, 255, 161, 0.3);
+	text-shadow: 0 0 4px var(--vwave-mint);
+}
+
+.token-type.erc20 {
+	color: var(--vwave-cyan);
+	background-color: rgba(1, 205, 254, 0.2);
+	border: 1px solid rgba(1, 205, 254, 0.3);
+	text-shadow: 0 0 4px var(--vwave-cyan);
+}
+
+/* 載入動畫 */
+.loading-spinner {
+	width: 40px;
+	height: 40px;
+	border: 4px solid rgba(255, 255, 255, 0.1);
+	border-left-color: var(--vwave-cyan);
+	border-radius: 50%;
+	margin: 0 auto;
+	animation: spin 1s linear infinite;
+}
+
+/* 卡片動畫 */
+.fade-up {
+	animation: fade-in-up 0.5s ease-out both;
+}
+
+/* 動畫延遲 */
+.delay-card-1 {
+	animation-delay: calc(1 * var(--animation-delay-unit));
+}
+
+.delay-card-2 {
+	animation-delay: calc(2 * var(--animation-delay-unit));
+}
+
+.delay-card-3 {
+	animation-delay: calc(3 * var(--animation-delay-unit));
+}
+
+.delay-card-4 {
+	animation-delay: calc(4 * var(--animation-delay-unit));
+}
+
+/* 適應性調整 */
+@media (max-width: 640px) {
+	.change-indicator {
+		margin-top: 0.5rem;
+		font-size: 1.125rem;
+	}
+}
+
+/* 特定樣式覆蓋 */
+.token-stats {
+	transition: all 0.3s ease;
+	box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+	background-color: rgba(0, 0, 0, 0.8);
+	border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.token-type {
+	padding: 0.25rem 0.75rem;
+	border-radius: var(--radius-lg);
+	font-size: 0.875rem;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+	font-weight: bold;
+}
+
+/* 如果漸變動畫尚未定義，需添加 */
+@keyframes gradient-shift {
+	0% {
+		background-position: 0% 50%;
+	}
+	50% {
+		background-position: 100% 50%;
+	}
+	100% {
+		background-position: 0% 50%;
+	}
+}
+
+/* 發光脈動效果 */
+@keyframes glow-pulse {
+	0%,
+	100% {
+		opacity: 0.2;
+		box-shadow: 0 0 10px currentColor;
+	}
+	50% {
+		opacity: 0.3;
+		box-shadow: 0 0 20px currentColor;
+	}
+}
+
+/* 一般脈動效果 */
+@keyframes pulse {
+	0%,
+	100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0.7;
+	}
+}
+
+/* 淡入上升動畫 */
+@keyframes fade-in-up {
+	0% {
+		opacity: 0;
+		transform: translateY(20px);
+	}
+	100% {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+/* 旋轉動畫 */
+@keyframes spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+/* 鏈選擇器組件樣式 */
+.chain-selector {
+	position: relative;
+	z-index: 50;
+}
+
+.chain-button {
+	position: relative;
+	font-family: 'MS Gothic', monospace;
+	color: var(--vwave-sun);
+	text-shadow: 0 0 5px rgba(255, 251, 150, 0.3);
+	transition: all 0.3s ease;
+	min-width: 180px;
+}
+
+.chain-icon {
+	font-size: 1.25rem;
+	line-height: 1;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.chain-name {
+	font-size: 1.05rem;
+	font-weight: 500;
+}
+
+.dropdown-arrow {
+	transition: transform 0.2s ease;
+	color: rgba(255, 251, 150, 0.7);
+}
+
+.dropdown-arrow.open {
+	transform: rotate(180deg);
+}
+
+.chain-button:hover .dropdown-arrow:not(.open) {
+	transform: translateY(2px);
+}
+
+/* 下拉選單容器 */
+.dropdown-container {
+	position: absolute;
+	top: 100%;
+	left: 0;
+	margin-top: 8px;
+	width: 240px;
+	z-index: 9999;
+}
+
+.chain-dropdown {
+	width: 100%;
+	max-height: 300px;
+	overflow: hidden;
+	border-radius: 0.75rem;
+	background-color: rgba(10, 12, 21, 0.95);
+	border: 1px solid rgba(1, 205, 254, 0.4);
+	box-shadow:
+		0 5px 25px rgba(0, 0, 0, 0.8),
+		0 0 20px rgba(1, 205, 254, 0.3);
+	backdrop-filter: blur(10px);
+}
+
+.dropdown-inner {
+	max-height: 300px;
+	overflow-y: auto;
+	padding: 4px 0;
+}
+
+.chain-icon-small {
+	font-size: 1.1rem;
+	line-height: 1;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.5rem;
+	color: var(--vwave-cyan);
+}
+
+.chain-option {
+	color: #ffffff;
+	font-size: 1rem;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+	cursor: pointer;
+}
+
+.chain-option:last-child {
+	border-bottom: none;
+}
+
+.chain-option:hover,
+.chain-option.active {
+	background-color: rgba(1, 205, 254, 0.1);
+}
+
+.chain-option.selected {
+	background-color: rgba(1, 205, 254, 0.15);
+	color: var(--vwave-cyan);
+	text-shadow: 0 0 5px rgba(1, 205, 254, 0.5);
+}
+
+/* 適配移動設備 - 鏈選擇器 */
+@media (max-width: 640px) {
+	.chain-button {
+		min-width: 160px;
+	}
+
+	.dropdown-container {
+		min-width: 200px;
+		max-width: 280px;
+	}
+}
+
+/* Dashboard 附加樣式 */
+.chain-selector-panel {
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+	transition: all 0.5s ease;
+}
+
+.chain-selector-panel:hover {
+	box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+}
+
+.pulse-glow-pink {
+	animation: pulse-border-pink 4s infinite alternate;
+}
+
+.pulse-glow-cyan {
+	animation: pulse-border-cyan 4s infinite alternate;
+}
+
+.pulse-glow-yellow {
+	animation: pulse-border-yellow 4s infinite alternate;
+}
+
+.pulse-glow-mint {
+	animation: pulse-border-mint 4s infinite alternate;
+}
+
+.hover-glow {
+	transition: all 0.3s ease;
+}
+
+.hover-glow:hover {
+	box-shadow: 0 0 20px rgba(1, 205, 254, 0.3);
+	border-color: var(--vwave-cyan);
+	transform: translateY(-2px);
+}
+
+@keyframes pulse-border-pink {
+	0%,
+	100% {
+		border: 1px solid rgba(255, 113, 206, 0.3);
+		box-shadow: 0 0 15px rgba(255, 113, 206, 0.2);
+	}
+	50% {
+		border: 1px solid rgba(255, 113, 206, 0.8);
+		box-shadow: 0 0 25px rgba(255, 113, 206, 0.5);
+	}
+}
+
+@keyframes pulse-border-cyan {
+	0%,
+	100% {
+		border: 1px solid rgba(1, 205, 254, 0.3);
+		box-shadow: 0 0 15px rgba(1, 205, 254, 0.2);
+	}
+	50% {
+		border: 1px solid rgba(1, 205, 254, 0.8);
+		box-shadow: 0 0 25px rgba(1, 205, 254, 0.5);
+	}
+}
+
+@keyframes pulse-border-yellow {
+	0%,
+	100% {
+		border: 1px solid rgba(255, 251, 150, 0.3);
+		box-shadow: 0 0 15px rgba(255, 251, 150, 0.2);
+	}
+	50% {
+		border: 1px solid rgba(255, 251, 150, 0.8);
+		box-shadow: 0 0 25px rgba(255, 251, 150, 0.5);
+	}
+}
+
+@keyframes pulse-border-mint {
+	0%,
+	100% {
+		border: 1px solid rgba(5, 255, 161, 0.3);
+		box-shadow: 0 0 15px rgba(5, 255, 161, 0.2);
+	}
+	50% {
+		border: 1px solid rgba(5, 255, 161, 0.8);
+		box-shadow: 0 0 25px rgba(5, 255, 161, 0.5);
+	}
+}
+
+/* 輸入框樣式 */
+.address-input {
+	transition: all 0.3s ease;
+	box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
+	color: white !important;
+}
+
+.address-input:focus {
+	background-color: rgba(0, 0, 0, 0.7);
+	box-shadow:
+		0 0 15px rgba(1, 205, 254, 0.3),
+		inset 0 0 10px rgba(0, 0, 0, 0.5);
+	color: white !important;
+}
+
+/* 處理瀏覽器自動填充的黑色文字問題 */
+.address-input:-webkit-autofill,
+.address-input:-webkit-autofill:hover,
+.address-input:-webkit-autofill:focus,
+.address-input:-webkit-autofill:active {
+	-webkit-text-fill-color: white !important;
+	-webkit-box-shadow: 0 0 0 30px #0a0c15 inset !important;
+	transition: background-color 5000s ease-in-out 0s;
+}
+
+.address-input.error {
+	border-color: var(--vwave-pink);
+	box-shadow:
+		0 0 0 1px var(--vwave-pink),
+		inset 0 0 10px rgba(0, 0, 0, 0.5);
+}
+
+/* 已保存地址項 */
+.address-item {
+	transition: all 0.3s ease;
+}
+
+.address-item.selected {
+	border-color: var(--vwave-cyan);
+	background-color: rgba(1, 205, 254, 0.1);
+	box-shadow: 0 0 10px rgba(1, 205, 254, 0.2);
+}
+
+.address-item span.address-label {
+	color: white !important;
+}
+
+.delete-btn {
+	font-size: 1.25rem;
+	line-height: 1;
+	font-weight: bold;
+	transition: all 0.2s ease;
+}
+
+/* 確認刪除對話框 */
+.delete-confirm-overlay {
+	animation: fade-in 0.2s ease-out;
+}
+
+.confirm-dialog {
+	animation: slide-up 0.3s ease-out;
+	box-shadow:
+		0 10px 25px rgba(0, 0, 0, 0.5),
+		0 0 15px rgba(255, 113, 206, 0.3);
+}
+
+@keyframes fade-in {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+@keyframes slide-up {
+	from {
+		opacity: 0;
+		transform: translateY(20px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}

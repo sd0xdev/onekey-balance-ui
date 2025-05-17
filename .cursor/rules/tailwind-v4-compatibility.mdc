@@ -1,0 +1,89 @@
+---
+description: Tailwind CSS v4 相容性指南
+globs: 
+alwaysApply: false
+---
+# Tailwind CSS v4 相容性指南
+
+## Tailwind v4 主要變更
+
+OneKey Balance UI 使用 Tailwind CSS v4，與之前版本相比有許多重要變更：
+
+1. CSS 變數取代硬編碼值
+2. 簡化的變體系統
+3. 移除了一些舊的工具類
+4. 原子化自定義屬性
+5. 更嚴格的 `@apply` 使用規則
+
+## @apply 使用限制
+
+在 Tailwind CSS v4 中，`@apply` 指令有以下限制：
+
+1. **不能用於任意值語法**：
+   - ❌ `@apply bg-[#ffcc00]`
+   - ✅ 使用標準 CSS: `background-color: #ffcc00;`
+
+2. **不能用於複合效果**：
+   - ❌ `@apply drop-shadow-[0_4px_8px_rgba(0,0,0,0.25)]`
+   - ✅ 使用標準 CSS: `filter: drop-shadow(0 4px 8px rgba(0,0,0,0.25));`
+
+3. **不能用於動畫**：
+   - ❌ `@apply animate-[pulse_1s_ease-in-out_infinite]`
+   - ✅ 使用標準 CSS: `animation: pulse 1s ease-in-out infinite;`
+
+## 顏色系統變更
+
+Tailwind v4 改變了顏色系統：
+
+1. **灰色系列變更**：
+   - ❌ `bg-gray-900`
+   - ✅ 使用具體顏色值: `background-color: #111827;` 或使用新的顏色類
+
+2. **變體和顏色分離**：
+   - 顏色現在使用色相/飽和度/亮度系統
+
+## 變體系統變化
+
+1. **`group` 不再是工具類**：
+   - ❌ `@apply group`
+   - ✅ 使用 `class="group"` 作為標記
+   - ✅ 子元素使用 `group-hover:` 等變體
+
+2. **變體組合方式改變**：
+   - 變體現在是分離的，而不是連接在一起
+
+## 更新 tailwind.config.mjs
+
+確保配置文件包含：
+
+1. **正確的 content 路徑**：
+   ```js
+   content: [
+     './src/**/*.{html,js,svelte,ts}'
+   ]
+   ```
+
+2. **主題擴展**：
+   ```js
+   theme: {
+     extend: {
+       // 自定義擴展...
+     }
+   }
+   ```
+
+## 問題排查與解決方案
+
+1. `Cannot apply unknown utility class: group`
+   - 解決方案：移除 `@apply group`，直接在HTML元素上使用 `class="group"`
+
+2. `Cannot apply unknown utility class: bg-gray-900`
+   - 解決方案：使用明確的背景顏色值或更新為新的顏色系統
+
+3. `Cannot apply unknown utility class: drop-shadow-[...]`
+   - 解決方案：改用標準CSS `filter: drop-shadow(...);`
+
+4. `Cannot apply unknown utility class: gap-2`
+   - 解決方案：檢查 tailwind.config.mjs 中的 content 設置是否正確
+
+當遇到不支援的工具類時，優先考慮使用標準CSS屬性或找到Tailwind v4對應的替代方案。

@@ -1,0 +1,63 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "npm: dev",
+			"type": "shell",
+			"command": "pnpm dev",
+			"isBackground": true,
+			"problemMatcher": {
+				"pattern": {
+					"regexp": ".",
+					"file": 1,
+					"location": 2,
+					"message": 3
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": "^.*SvelteKit v\\d+\\.\\d+\\.\\d+.*$",
+					"endsPattern": "^.*Local:.*$"
+				}
+			},
+			"presentation": {
+				"reveal": "silent",
+				"focus": false,
+				"panel": "shared"
+			}
+		},
+		{
+			"label": "npm: debug",
+			"type": "shell",
+			"command": "node --inspect-brk=9229 ./node_modules/.bin/vite dev",
+			"isBackground": true,
+			"problemMatcher": {
+				"pattern": {
+					"regexp": ".",
+					"file": 1,
+					"location": 2,
+					"message": 3
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": "^.*SvelteKit v\\d+\\.\\d+\\.\\d+.*$",
+					"endsPattern": "^.*Local:.*$"
+				}
+			},
+			"presentation": {
+				"reveal": "silent",
+				"focus": false,
+				"panel": "shared"
+			}
+		},
+		{
+			"label": "npm: build",
+			"type": "shell",
+			"command": "pnpm build",
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"problemMatcher": []
+		}
+	]
+}
