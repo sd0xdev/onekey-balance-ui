@@ -11,6 +11,9 @@
 
 ## 📺 預覽影片
 
+<video
+src="https://raw.githubusercontent.com/sd0xdev/onekey-balance-ui/main/docs/demo.mp4" width="640" height="360" controls muted></video>
+
 <p align="center">
   <a href="https://raw.githubusercontent.com/sd0xdev/onekey-balance-ui/main/docs/demo.mp4" target="_blank">點擊此處查看演示視頻</a>
 </p>
