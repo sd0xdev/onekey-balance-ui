@@ -1,11 +1,13 @@
 # ONEKEY BALANCE UI - 蒸汽波風格資產管理界面
 
-![主題預覽](https://via.placeholder.com/800x400)
-
 這個專案是一個基於 Svelte 和 Tailwind CSS v4 的加密貨幣資產管理界面，以蒸汽波 (Vaporwave) 復古未來主義風格呈現。結合霓虹色彩、復古視覺元素和現代UI設計，創造出獨特的用戶體驗。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/sd0xdev/onekey-balance-kit/main/docs/assets/logo.png" alt="OneKeyBalanceKit Logo" width="200">
+</p>
 
 ## ✨ 特色
 
