@@ -9,6 +9,12 @@
   <img src="https://raw.githubusercontent.com/sd0xdev/onekey-balance-kit/main/docs/assets/logo.png" alt="OneKeyBalanceKit Logo" width="200">
 </p>
 
+## 📺 預覽影片
+
+<p align="center">
+  <a href="https://raw.githubusercontent.com/sd0xdev/onekey-balance-ui/main/docs/demo.mp4" target="_blank">點擊此處查看演示視頻</a>
+</p>
+
 ## ✨ 特色
 
 - 🔮 蒸汽波 × 高級雜誌混合視覺風格
