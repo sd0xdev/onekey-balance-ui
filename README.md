@@ -9,6 +9,12 @@
   <img src="https://raw.githubusercontent.com/sd0xdev/onekey-balance-kit/main/docs/assets/logo.png" alt="OneKeyBalanceKit Logo" width="200">
 </p>
 
+## 📺 預覽影片
+
+<p align="center">
+  <a href="https://raw.githubusercontent.com/sd0xdev/onekey-balance-ui/main/docs/demo.mp4" target="_blank">點擊此處查看演示視頻</a>
+</p>
+
 ## ✨ 特色
 
 - 🔮 蒸汽波 × 高級雜誌混合視覺風格
@@ -145,3 +151,9 @@ src/
 ---
 
 <p align="center">⭐ 如果您喜歡這個專案，請給它一個星標！⭐</p>
+
+## 📚 參考地址
+
+以下是可用於測試或參考的以太坊地址：
+
+- Ethereum 主網大額持幣地址: [0x28c6c06298d514db089934071355e5743bf21d60](https://etherscan.io/address/0x28c6c06298d514db089934071355e5743bf21d60)
