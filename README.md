@@ -9,10 +9,12 @@
   <img src="https://raw.githubusercontent.com/sd0xdev/onekey-balance-kit/main/docs/assets/logo.png" alt="OneKeyBalanceKit Logo" width="200">
 </p>
 
+
+
+
 ## 📺 預覽影片
 
-<video
-src="https://raw.githubusercontent.com/sd0xdev/onekey-balance-ui/main/docs/demo.mp4" width="640" height="360" controls muted></video>
+<video src="https://github.com/user-attachments/assets/41f74444-7794-404f-ae75-15382db9c5f4" width="640" height="360" controls muted></video>
 
 <p align="center">
   <a href="https://raw.githubusercontent.com/sd0xdev/onekey-balance-ui/main/docs/demo.mp4" target="_blank">點擊此處查看演示視頻</a>
