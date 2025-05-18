@@ -1,0 +1,218 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# OneKey Balance UI - API 與 SSE 連接指南
+
+## API 架構概述
+
+OneKey Balance UI 使用 REST API 獲取區塊鏈和餘額數據，並通過 SSE (Server-Sent Events) 進行實時更新。API 相關邏輯主要分布在以下文件中：
+
+- [src/lib/api.ts](mdc:src/lib/api.ts) - 主要 API 型別定義和請求函數
+- [src/lib/stores/balance.ts](mdc:src/lib/stores/balance.ts) - 餘額數據狀態管理
+- [src/lib/stores/sse.ts](mdc:src/lib/stores/sse.ts) - SSE 連接管理
+
+## API 端點與數據結構
+
+### 餘額 API
+
+餘額 API 提供指定地址在特定區塊鏈上的資產資訊：
+
+```typescript
+GET /balances/{chain}/{address}
+```
+
+返回數據結構：
+
+```typescript
+interface BalanceResponse {
+  nativeBalance: {
+    symbol: string;       // 原生代幣符號
+    decimals: number;     // 小數位數
+    balance: string;      // 餘額（字符串格式）
+    usd: number;          // 美元價值
+  };
+  tokens: Array<{         // ERC20 代幣列表
+    symbol: string;       // 代幣符號
+    name: string;         // 代幣名稱
+    address: string;      // 合約地址
+    balance: string;      // 餘額（字符串格式）
+    decimals: number;     // 小數位數
+    usd: number;          // 美元價值
+    logo?: string;        // 代幣圖標 URL
+  }>;
+  nfts: Array<{           // NFT 列表
+    address: string;      // NFT 合約地址
+    tokenId: string;      // 代幣 ID
+    name: string;         // NFT 名稱
+    symbol: string;       // NFT 符號
+    image: string;        // NFT 圖片 URL
+    balance: string;      // 擁有數量
+    floorPrice?: number;  // 地板價（可選）
+  }>;
+  updatedAt: number;      // 更新時間戳
+}
+```
+
+### 區塊鏈 API
+
+獲取支援的區塊鏈列表：
+
+```typescript
+GET /chains
+GET /chains?include_testnet=true  // 包含測試網絡
+```
+
+返回數據結構：
+
+```typescript
+interface ChainsResponse {
+  chains: Array<{
+    id: number;             // 鏈 ID
+    name: string;           // 鏈名稱
+    type: string;           // 鏈類型
+    isTestnet: boolean;     // 是否測試網
+    mainnetRef?: string;    // 對應的主網引用（僅測試網）
+    supportedSymbols: string[]; // 支援的代幣符號
+  }>;
+}
+```
+
+## API 調用流程
+
+1. **初始化**：應用啟動時從 `PUBLIC_API_URL` 環境變數中獲取 API 基礎 URL
+2. **請求過程**：
+   - 請求前進行參數驗證（地址格式、鏈 ID 等）
+   - 使用 `fetch` API 發送請求
+   - 實施錯誤處理和數據格式化
+3. **數據處理**：
+   - 驗證返回數據有效性
+   - 提供默認值處理缺失字段
+   - 格式化數據供 UI 使用
+
+## 狀態管理 - Balance Store
+
+Balance Store 管理資產餘額數據的狀態，主要特點：
+
+1. **狀態結構**：
+   ```typescript
+   interface BalanceStore {
+     chain: string;               // 當前鏈
+     address: string;             // 錢包地址
+     data: BalanceResponse | null; // 餘額數據
+     previousData: BalanceResponse | null; // 前一次數據（用於動畫）
+     isLoading: boolean;          // 加載狀態
+     error: string;               // 錯誤信息
+     isAnimating: boolean;        // 動畫標記
+   }
+   ```
+
+2. **主要方法**：
+   - `setChain(chain: string)` - 設置當前鏈
+   - `setAddress(address: string)` - 設置當前地址
+   - `fetchBalance()` - 獲取最新餘額數據
+   - `setAnimationComplete()` - 標記動畫完成
+
+3. **餘額變化動畫**：
+   - 當新數據與舊數據不同時，設置 `isAnimating` 為 true
+   - 保存舊數據於 `previousData` 中用於計算變化效果
+   - 動畫完成後調用 `setAnimationComplete()`
+
+## SSE (Server-Sent Events) 連接管理
+
+SSE 連接提供實時餘額更新通知，實現邏輯位於 `sseStore`：
+
+1. **連接狀態**：
+   ```typescript
+   type SSEStatus = 'CONNECTING' | 'ONLINE' | 'ERROR' | 'CLOSED' | 'OFFLINE';
+   
+   interface SSEStore {
+     status: SSEStatus;           // 連接狀態
+     retryCount: number;          // 重試次數
+     connection: EventSource | null; // SSE 連接物件
+     lastError: string;           // 最近錯誤
+     lastEventId: string;         // 最後事件 ID
+     lastHeartbeat: number;       // 最後心跳時間戳
+     nextRetryTime: number;       // 下次重試時間
+   }
+   ```
+
+2. **連接管理**：
+   - `connect()` - 建立 SSE 連接
+   - `disconnect()` - 關閉 SSE 連接
+   - `reconnect()` - 重置並重新建立連接
+
+3. **容錯機制**：
+   - 指數避退重連策略（最小 1 秒，最大 30 秒）
+   - 最多嘗試 6 次重連後標記為 'OFFLINE'
+   - 心跳檢測（每 30 秒需收到心跳，否則重連）
+
+4. **事件處理**：
+   - 監聽 `cache.invalidate` 事件獲取餘額更新通知
+   - 僅處理與當前用戶相關的通知（相同鏈和地址）
+   - 收到通知時自動調用 `balanceStore.fetchBalance()`
+
+## SSE 連接生命週期
+
+1. **初始連接**：
+   ```javascript
+   // URL: ${PUBLIC_API_URL}/sse/subscribe/cache
+   const sse = new EventSource(url, { 
+     headers: { 'Last-Event-ID': lastEventId }  // 可選
+   });
+   ```
+
+2. **心跳檢測**：
+   - 服務器每隔一段時間發送 `: keepalive` 消息
+   - 客戶端每 15 秒檢查一次最後心跳時間
+   - 如超過 30 秒未收到心跳，觸發重連
+
+3. **事件監聽**：
+   ```javascript
+   sse.addEventListener('cache.invalidate', (event) => {
+     const data = JSON.parse(event.data);
+     // 驗證事件是否與當前用戶相關
+     if (metadata.chain === currentChain && 
+         metadata.address.toLowerCase() === currentAddress.toLowerCase()) {
+       // 觸發餘額更新
+       balanceStore.fetchBalance();
+     }
+   });
+   ```
+
+4. **錯誤處理**：
+   - 連接失敗時自動重試
+   - 使用指數避退算法計算重試間隔
+   - 顯示適當的錯誤狀態和重連信息
+
+## 實用技巧
+
+1. **手動觸發餘額更新**：
+   ```javascript
+   import { balanceStore } from '$lib/stores/balance';
+   
+   // 獲取最新餘額
+   balanceStore.fetchBalance();
+   ```
+
+2. **監視連接狀態**：
+   ```javascript
+   import { sseStore } from '$lib/stores/sse';
+   
+   sseStore.subscribe(state => {
+     if (state.status === 'ERROR') {
+       console.log(`連接錯誤: ${state.lastError}`);
+     }
+   });
+   ```
+
+3. **重新建立連接**：
+   ```javascript
+   import { sseStore } from '$lib/stores/sse';
+   
+   // 在網絡恢復後重新連接
+   window.addEventListener('online', () => {
+     sseStore.reconnect();
+   });
+   ```

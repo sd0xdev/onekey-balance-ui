@@ -1,4 +1,6 @@
 // 定義 API 響應類型
+import { PUBLIC_API_URL } from '$env/static/public';
+
 export interface NativeBalance {
 	symbol: string;
 	decimals: number;
@@ -59,7 +61,8 @@ export async function getChains(
 ): Promise<ChainsResponse> {
 	try {
 		const fetchFn = options?.fetch || fetch;
-		const url = includeTestnet ? `/api/chains?include_testnet=true` : `/api/chains`;
+		const baseUrl = PUBLIC_API_URL || '';
+		const url = includeTestnet ? `${baseUrl}/chains?include_testnet=true` : `${baseUrl}/chains`;
 
 		const response = await fetchFn(url, {
 			method: 'GET',
@@ -120,7 +123,8 @@ export async function getBalance(
 		);
 
 		// 建構API URL
-		const apiUrl = `/api/balances/${chain}/${cleanAddress}`;
+		const baseUrl = PUBLIC_API_URL || '';
+		const apiUrl = `${baseUrl}/balances/${chain}/${cleanAddress}`;
 		console.log(`請求API: ${apiUrl}`);
 
 		// 使用 fetch API 發送請求

@@ -4,6 +4,9 @@
 
 這個專案是一個基於 Svelte 和 Tailwind CSS v4 的加密貨幣資產管理界面，以蒸汽波 (Vaporwave) 復古未來主義風格呈現。結合霓虹色彩、復古視覺元素和現代UI設計，創造出獨特的用戶體驗。
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+
 ## ✨ 特色
 
 - 🔮 蒸汽波 × 高級雜誌混合視覺風格
@@ -108,6 +111,35 @@ src/
 4. 避免過度使用視覺元素，保持「三件套」原則
 5. 保持適當的空白和呼吸空間
 
+## 👥 如何貢獻
+
+我們非常歡迎並感謝所有形式的社區貢獻！無論是提交錯誤報告、功能建議、改進文檔還是提交程式碼，您的參與對我們都非常重要。
+
+請查看我們的 [貢獻指南](CONTRIBUTING.md) 以了解有關參與本專案的詳細信息。
+
+### 貢獻流程
+
+1. Fork 本專案
+2. 創建您的特性分支 (`git checkout -b feature/amazing-feature`)
+3. 提交您的更改 (`git commit -m '添加一些驚人的特性'`)
+4. 推送到分支 (`git push origin feature/amazing-feature`)
+5. 開啟一個 Pull Request
+
+## 🔒 安全
+
+如果您發現安全漏洞，請不要在公開的 GitHub 問題中報告它們。請查看我們的 [安全政策](SECURITY.md) 了解如何報告安全問題。
+
 ## 📄 授權
 
-MIT
+本專案採用 MIT 許可證 - 詳情請參見 [LICENSE](LICENSE) 文件。
+
+## 📞 聯繫方式
+
+如果您有任何問題或建議，請通過以下方式聯繫我們：
+
+- 提交 [GitHub 問題](https://github.com/your-username/onekey-balance-ui/issues)
+- 在社交媒體上關注我們
+
+---
+
+<p align="center">⭐ 如果您喜歡這個專案，請給它一個星標！⭐</p>

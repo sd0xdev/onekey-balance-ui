@@ -26,7 +26,7 @@
 
 	// 目前選中的區塊鏈和地址
 	let currentChain = 'ethereum';
-	let currentAddress = '0x28c6c06298d514db089934071355e5743bf21d60';
+	let currentAddress = '0x55FE002aefF02F77364de339a1292923A15844B8';
 
 	// 數據狀態
 	let balanceData: BalanceResponse | null = null;
@@ -97,11 +97,14 @@
 			console.log(`發現 ${data.tokens.length} 個ERC20代幣, ${data.nfts.length} 個NFT`);
 
 			// 保存當前數據為前一個數據（用於動畫）
+			// 檢查是否有舊數據，以及是否有值變化
 			const shouldAnimate = !!(
 				balanceData &&
 				data &&
-				JSON.stringify(balanceData) !== JSON.stringify(data)
+				Math.abs(calculateTotalValue(balanceData) - calculateTotalValue(data)) > 0.01
 			);
+
+			console.log('數據變化檢測:', shouldAnimate ? '有變化，啟用動畫' : '無變化或首次加載');
 
 			if (shouldAnimate) {
 				previousBalanceData = balanceData;
@@ -130,6 +133,18 @@
 		} finally {
 			isLoading = false;
 		}
+	}
+
+	/**
+	 * 計算資產總值
+	 * @param data 餘額數據
+	 * @returns 總值
+	 */
+	function calculateTotalValue(data: BalanceResponse): number {
+		if (!data) return 0;
+		const nativeValue = data.nativeBalance.usd || 0;
+		const tokensValue = data.tokens.reduce((sum, token) => sum + (token.usd || 0), 0);
+		return nativeValue + tokensValue;
 	}
 
 	/**
@@ -210,6 +225,7 @@
 		}
 
 		console.log('處理餘額數據:', JSON.stringify(data.nativeBalance));
+		console.log('強制更新UI，地址:', currentAddress);
 
 		// 記錄原始餘額數值以便調試
 		console.log(
@@ -250,18 +266,22 @@
 			};
 		});
 
-		// 組合資產列表
+		// 組合資產列表 - 使用 = 強制重新賦值
 		assets = [nativeAsset, ...tokenAssets];
 		console.log('更新後的資產列表:', assets);
+		console.log('原生代幣金額:', nativeAsset.tokenBalance, nativeAsset.value);
 
 		// 計算總價值（原生代幣 + 所有 ERC20 代幣）
 		const newTotalValue =
 			data.nativeBalance.usd + data.tokens.reduce((sum, token) => sum + token.usd, 0);
 
+		console.log('計算新總值:', newTotalValue);
+
 		// 如果是加載新數據且啟用動畫
 		if (animate && previousBalanceData) {
-			// 使用 tweened 進行過渡動畫
-			tTotalValue.set(newTotalValue);
+			// 使用 tweened 進行過渡動畫，並保證動畫持續時間
+			console.log(`總值動畫: ${totalValue} -> ${newTotalValue}`);
+			tTotalValue.set(newTotalValue, { duration: 1500 });
 
 			// 為每個資產設置動畫
 			assets.forEach((asset) => {
@@ -296,27 +316,27 @@
 			}, 1500);
 		} else {
 			// 無動畫時直接設置
+			console.log('直接設置新總值(無動畫):', newTotalValue);
 			tTotalValue.set(newTotalValue, { duration: 0 });
+
+			// 強制重置所有資產的 tweened 值
+			tAssetValues = {};
+
 			assets.forEach((asset) => {
-				if (!tAssetValues[asset.name]) {
-					const assetTweened = tweened(asset.value, { duration: 0 });
+				const assetTweened = tweened(asset.value, { duration: 0 });
 
-					// 儲存資產的當前值和 tweened 對象
-					tAssetValues[asset.name] = {
-						value: asset.value,
-						tweened: assetTweened
-					};
+				// 儲存資產的當前值和 tweened 對象
+				tAssetValues[asset.name] = {
+					value: asset.value,
+					tweened: assetTweened
+				};
 
-					// 建立訂閱以更新值（這個仍然是必要的）
-					assetTweened.subscribe((value) => {
-						if (tAssetValues[asset.name]) {
-							tAssetValues[asset.name].value = value;
-						}
-					});
-				} else {
-					// 直接更新值
-					tAssetValues[asset.name].tweened.set(asset.value, { duration: 0 });
-				}
+				// 建立訂閱以更新值
+				assetTweened.subscribe((value) => {
+					if (tAssetValues[asset.name]) {
+						tAssetValues[asset.name].value = value;
+					}
+				});
 			});
 		}
 
@@ -324,6 +344,13 @@
 
 		// 獲取 NFT 數量
 		nftCount = data.nfts.length;
+
+		// 強制觸發更新
+		assets = [...assets];
+		setTimeout(() => {
+			// 再次強制觸發更新 (確保響應式更新)
+			assets = [...assets];
+		}, 100);
 	}
 
 	/**
@@ -393,6 +420,9 @@
 				}
 			}
 		}
+
+		// 更新 URL 參數
+		updateUrlParams();
 
 		// 延遲一下再獲取餘額，確保UI已更新
 		setTimeout(() => {
@@ -464,17 +494,31 @@
 	 * 更新地址
 	 */
 	function updateAddress(address: string) {
+		// 檢查地址是否真的變更
+		if (currentAddress === address) {
+			console.log('地址未變更，不執行操作');
+			return;
+		}
+
+		console.log(`開始更新地址: 從 ${currentAddress} 到 ${address}`);
 		currentAddress = address;
-		// 先清空當前餘額數據，避免顯示錯誤數據
+
+		// 清空狀態，強制刷新
 		balanceData = null;
 		previousBalanceData = null;
 		isAnimating = false;
+		tAssetValues = {}; // 強制重置所有 tweened 值
 		assets = []; // 清空資產列表
+		totalValue = 0; // 重置總值
+		tTotalValue.set(0, { duration: 0 }); // 重置總值動畫
 
 		// 標記為加載中
 		isLoading = true;
 		// 清除錯誤
 		error = '';
+
+		// 更新 URL 參數
+		updateUrlParams();
 
 		// 更新 balanceStore 中的地址
 		balanceStore.setAddress(address);
@@ -484,7 +528,12 @@
 		balanceStore
 			.fetchBalance()
 			.then((data) => {
-				// balanceStore 訂閱會處理數據更新
+				// 手動更新 UI，確保立即刷新
+				if (data) {
+					console.log('成功獲取新地址的餘額數據，手動更新 UI');
+					balanceData = data;
+					updateBalanceUI(data, false);
+				}
 				isLoading = false;
 			})
 			.catch((err) => {
@@ -530,25 +579,32 @@
 			// 如果發生錯誤，顯示在 UI 上並嘗試重連
 			if (state.status === 'ERROR' && state.lastError) {
 				console.error(`SSE 連接錯誤: ${state.lastError}`);
-				error = `SSE 連接錯誤: ${state.lastError}`; // 更新UI錯誤狀態
 
-				// 5秒後清除錯誤訊息
-				setTimeout(() => {
-					if (error.startsWith('SSE 連接錯誤')) {
-						error = '';
-					}
-				}, 5000);
+				// 只有在當前沒有顯示 OFFLINE 狀態的錯誤時才更新 ERROR 狀態
+				if (!error.includes('已離線')) {
+					error = `SSE 連接錯誤: ${state.lastError}`; // 更新UI錯誤狀態
+				}
 
-				// 如果還沒有設置重連定時器，設置一個（除了正常的連接重試外，額外的保障）
-				if (!sseReconnectTimer) {
-					console.log('設置額外的 SSE 重連定時器 (60秒後)');
-					sseReconnectTimer = setTimeout(() => {
-						sseReconnectTimer = null;
-						if (sseStatus !== 'ONLINE') {
-							console.log('執行額外的 SSE 重連');
-							sseStore.connect();
-						}
-					}, 60000); // 60秒後重試
+				// 不要自動清除錯誤訊息，讓它保持直到下一個狀態變更
+				// 移除清除定時器的邏輯
+
+				// 移除額外的重連定時器，讓 sse.ts 中的重試邏輯處理
+				if (sseReconnectTimer) {
+					console.log('取消額外的 SSE 重連定時器');
+					clearTimeout(sseReconnectTimer);
+					sseReconnectTimer = null;
+				}
+			}
+
+			// 如果已經離線（達到最大重試次數），顯示特殊信息
+			if (state.status === 'OFFLINE') {
+				console.warn('SSE 連接已離線（達到最大重試次數）');
+				error = 'SSE 連接已離線，請點擊重新連接按鈕手動重試';
+
+				// 如果設置了自動重連定時器，取消它
+				if (sseReconnectTimer) {
+					clearTimeout(sseReconnectTimer);
+					sseReconnectTimer = null;
 				}
 			}
 
@@ -557,19 +613,64 @@
 				console.log('SSE 連接成功，取消重連定時器');
 				clearTimeout(sseReconnectTimer);
 				sseReconnectTimer = null;
+				error = ''; // 清除錯誤消息
+			}
+
+			// 如果開始連接中，清除錯誤訊息，但保留離線狀態訊息
+			if (state.status === 'CONNECTING' && error && !error.includes('已離線')) {
+				error = '';
 			}
 		});
 
 		// 訂閱 balanceStore 變化
 		balanceStore.subscribe((state) => {
 			// 如果 balanceStore 中的數據更新了，則更新組件數據
-			if (
-				state.data &&
-				(!balanceData || JSON.stringify(state.data) !== JSON.stringify(balanceData))
-			) {
-				console.log('檢測到 balanceStore 數據更新，自動同步餘額數據');
-				balanceData = state.data;
-				updateBalanceUI(state.data, state.isAnimating);
+			if (state.data) {
+				// 添加調試日誌以檢查地址信息
+				console.log(`balanceStore 更新，地址: ${state.address}, 當前組件地址: ${currentAddress}`);
+
+				// 檢查是否有舊數據，以及值是否有實質變化
+				const hasChange = !!(
+					balanceData &&
+					Math.abs(calculateTotalValue(state.data) - calculateTotalValue(balanceData)) > 0.01
+				);
+				const isNewData = !balanceData;
+				// 檢查地址是否變更 - 新增這個條件
+				const isAddressChanged = state.address !== currentAddress;
+
+				// 添加更多日誌
+				console.log('數據變更檢查: ', {
+					isNewData,
+					hasChange,
+					isAddressChanged,
+					oldTotal: balanceData ? calculateTotalValue(balanceData) : 0,
+					newTotal: calculateTotalValue(state.data)
+				});
+
+				if (isNewData || hasChange || isAddressChanged) {
+					console.log('檢測到 balanceStore 數據更新，自動同步餘額數據');
+					console.log(
+						'數據變化原因:',
+						isNewData ? '首次加載' : hasChange ? '金額變化' : '地址變更'
+					);
+
+					// 如果是地址變更，強制重置
+					if (isAddressChanged) {
+						console.log('強制重置所有狀態，因為地址已變更');
+						previousBalanceData = null;
+						tAssetValues = {}; // 強制重置所有 tweened 值
+						assets = []; // 清空資產列表
+						totalValue = 0; // 重置總值
+						tTotalValue.set(0, { duration: 0 }); // 重置總值動畫
+					} else if (hasChange) {
+						previousBalanceData = balanceData;
+					}
+
+					balanceData = state.data;
+					// 注意：不要在訂閱回調中修改 currentAddress，因為這可能導致循環更新
+					// 相反，我們會在 UI 更新函數中使用最新的 state.address
+					updateBalanceUI(state.data, hasChange && !isAddressChanged); // 只有在金額實際變化且非地址變更時才啟用動畫
+				}
 			}
 		});
 
@@ -583,8 +684,9 @@
 					// 當頁面變為可見時，檢查並重連 SSE
 					console.log('頁面變為可見，檢查 SSE 連接狀態');
 					if (sseStatus !== 'ONLINE' && sseStatus !== 'CONNECTING') {
-						console.log('重新連接 SSE');
-						sseStore.connect();
+						console.log('頁面變為可見，重新連接 SSE');
+						// 使用 reconnect 方法而非 connect，以重置重試計數
+						sseStore.reconnect();
 					} else {
 						console.log('SSE 已連接或正在連接中');
 					}
@@ -601,8 +703,9 @@
 				if (navigator.onLine) {
 					console.log('網絡連接恢復，檢查 SSE 連接狀態');
 					if (sseStatus !== 'ONLINE' && sseStatus !== 'CONNECTING') {
-						console.log('重新連接 SSE');
-						sseStore.connect();
+						console.log('網絡恢復，重新連接 SSE');
+						// 使用 reconnect 方法而非 connect，以重置重試計數
+						sseStore.reconnect();
 					}
 				} else {
 					console.log('網絡連接斷開');
@@ -660,6 +763,33 @@
 	}
 
 	onMount(() => {
+		// 檢查 URL 參數
+		if (typeof window !== 'undefined') {
+			const urlParams = new URLSearchParams(window.location.search);
+			const chainParam = urlParams.get('chain');
+			const addressParam = urlParams.get('address');
+
+			console.log('URL 參數檢查:', { chainParam, addressParam });
+
+			// 如果有有效的地址參數
+			if (addressParam && /^0x[a-fA-F0-9]{40}$/.test(addressParam)) {
+				console.log(`使用 URL 指定的地址: ${addressParam}`);
+				currentAddress = addressParam;
+			}
+
+			// 如果有鏈參數
+			if (chainParam) {
+				// 處理可能的鏈 ID 映射 (例如 eth -> ethereum)
+				let chainId = chainParam.toLowerCase();
+				if (chainId === 'eth') chainId = 'ethereum';
+				if (chainId === 'bsc') chainId = 'binance';
+				if (chainId === 'avax') chainId = 'avalanche';
+
+				console.log(`使用 URL 指定的鏈: ${chainId}`);
+				currentChain = chainId;
+			}
+		}
+
 		// 加載資產數據
 		// 首次加載時直接調用 balanceStore.fetchBalance
 		console.log('初始化加載餘額數據');
@@ -689,11 +819,15 @@
 			// 監聽來自ChainSelector的事件
 			window.addEventListener('chainChanged', ((e: CustomEvent) => {
 				updateChain(e.detail.chain);
+				// 更新 URL 參數但不刷新頁面
+				updateUrlParams();
 			}) as EventListener);
 
 			// 監聽來自AddressInput的事件
 			window.addEventListener('addressChanged', ((e: CustomEvent) => {
 				updateAddress(e.detail.address);
+				// 更新 URL 參數但不刷新頁面
+				updateUrlParams();
 			}) as EventListener);
 		}
 	});
@@ -790,6 +924,38 @@
 		const finalFormatted = formatted.endsWith('.') ? formatted.slice(0, -1) : formatted;
 
 		return `${finalFormatted} ${symbol}`;
+	}
+
+	// 格式化金額為簡短形式（如 1.2M, 4.5B 等）
+	function formatShortCurrency(value: number): string {
+		if (value === 0) return '$0.00';
+
+		const absValue = Math.abs(value);
+
+		if (absValue >= 1_000_000_000) {
+			return '$' + (value / 1_000_000_000).toFixed(1) + 'B';
+		} else if (absValue >= 1_000_000) {
+			return '$' + (value / 1_000_000).toFixed(1) + 'M';
+		} else if (absValue >= 1_000) {
+			return '$' + (value / 1_000).toFixed(1) + 'k';
+		} else {
+			return '$' + value.toFixed(2);
+		}
+	}
+
+	// 判斷是否使用簡短金額顯示
+	function shouldUseShortFormat(value: number): boolean {
+		return value >= 1_000_000; // 百萬以上使用簡短格式
+	}
+
+	// 更新 URL 參數
+	function updateUrlParams() {
+		if (typeof window !== 'undefined') {
+			const url = new URL(window.location.href);
+			url.searchParams.set('chain', currentChain);
+			url.searchParams.set('address', currentAddress);
+			window.history.replaceState(null, '', url.toString());
+		}
 	}
 </script>
 
@@ -1021,6 +1187,7 @@
 
 					<div class="wallet-address font-['MS_Gothic',monospace] text-xs text-[#fffb96]">
 						{currentAddress.slice(0, 6)}...{currentAddress.slice(-4)}
+						<span class="hidden">{Math.random()}</span>
 					</div>
 					<div class="digital-time font-['MS_Gothic',monospace]">{currentTime}</div>
 				</div>
@@ -1031,12 +1198,12 @@
 				<div
 					class="relative z-10 flex items-baseline justify-between text-3xl font-bold text-white sm:text-5xl"
 				>
-					<span class="glow-text text-[#05ffa1]"
-						>${$tTotalValue.toLocaleString(undefined, {
+					<span class="glow-text text-[#05ffa1]">
+						${$tTotalValue.toLocaleString(undefined, {
 							minimumFractionDigits: 2,
 							maximumFractionDigits: 2
-						})}</span
-					>
+						})}
+					</span>
 					<span class="change-indicator {totalChange >= 0 ? 'positive' : 'negative'}">
 						{totalChange >= 0 ? '+' : ''}{totalChange}%
 					</span>
@@ -1055,23 +1222,32 @@
 			{:else}
 				<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
 					{#each assets as asset, i}
+						{@const valueLength = tAssetValues[asset.name]
+							? tAssetValues[asset.name].value.toLocaleString().length
+							: asset.value.toLocaleString().length}
+						{@const isLongNumber = valueLength > 10}
 						<div
 							class="asset-card delay-card-{i + 1} {isAnimating ? 'fade-up' : ''} 
 							hover-glow relative flex items-center gap-4 overflow-hidden rounded-2xl border border-white/10 bg-black/80 p-4 backdrop-blur-sm"
+							class:long-number-card={isLongNumber}
 						>
-							<div class="asset-icon">{asset.icon}</div>
+							<div class="asset-icon" class:asset-icon-large={isLongNumber}>{asset.icon}</div>
 							<div class="flex-1">
 								<div class="font-['MS_Gothic',monospace] text-sm text-[#fffb96]">{asset.name}</div>
-								<div class="price-highlight text-lg font-bold">
-									${tAssetValues[asset.name]
-										? tAssetValues[asset.name].value.toLocaleString(undefined, {
-												minimumFractionDigits: 2,
-												maximumFractionDigits: 2
-											})
-										: asset.value.toLocaleString(undefined, {
-												minimumFractionDigits: 2,
-												maximumFractionDigits: 2
-											})}
+								<div class="price-highlight text-lg font-bold" class:text-base={isLongNumber}>
+									{#if shouldUseShortFormat(tAssetValues[asset.name]?.value || asset.value)}
+										{formatShortCurrency(tAssetValues[asset.name]?.value || asset.value)}
+									{:else}
+										${tAssetValues[asset.name]
+											? tAssetValues[asset.name].value.toLocaleString(undefined, {
+													minimumFractionDigits: 2,
+													maximumFractionDigits: 2
+												})
+											: asset.value.toLocaleString(undefined, {
+													minimumFractionDigits: 2,
+													maximumFractionDigits: 2
+												})}
+									{/if}
 								</div>
 								<div class="mt-1 flex items-center justify-between">
 									<span class="text-xs text-white/80">
@@ -1157,6 +1333,7 @@
 										),
 										balanceData.nativeBalance.symbol
 									)}
+									<span class="hidden">{Math.random()}</span>
 								</div>
 							</div>
 						</div>
@@ -1289,5 +1466,22 @@
 		to {
 			transform: rotate(360deg);
 		}
+	}
+
+	/* 長數字資產卡片樣式 */
+	.asset-icon {
+		min-width: 30px;
+		text-align: center;
+		font-size: 20px;
+	}
+
+	.asset-icon-large {
+		min-width: 40px;
+		font-size: 22px;
+	}
+
+	.long-number-card {
+		padding-left: 12px;
+		padding-right: 12px;
 	}
 </style>

@@ -25,11 +25,11 @@ const initialState: ChainsStore = {
 	addresses: [
 		{
 			chain: 'ethereum',
-			address: '0x28c6c06298d514db089934071355e5743bf21d60',
+			address: '0x55FE002aefF02F77364de339a1292923A15844B8',
 			label: '預設帳戶'
 		}
 	],
-	currentAddress: '0x28c6c06298d514db089934071355e5743bf21d60',
+	currentAddress: '0x55FE002aefF02F77364de339a1292923A15844B8',
 	isLoading: false,
 	error: ''
 };

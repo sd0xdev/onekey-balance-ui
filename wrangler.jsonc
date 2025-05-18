@@ -32,13 +32,13 @@
 		"preview": {
 			"vars": {
 				"PUBLIC_ENV": "staging",
-				"PUBLIC_API_URL": "https://staging-api-onekeybalance.sd0.tech"
+				"PUBLIC_API_URL": "https://staging-api-onekeybalance.sd0.tech/v1/api"
 			}
 		},
 		"production": {
 			"vars": {
 				"PUBLIC_ENV": "production",
-				"PUBLIC_API_URL": "https://api-onekeybalance.sd0.tech"
+				"PUBLIC_API_URL": "https://api-onekeybalance.sd0.tech/v1/api"
 			}
 		}
 	}
