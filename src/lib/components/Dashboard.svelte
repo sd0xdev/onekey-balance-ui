@@ -2,18 +2,47 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { balanceStore } from '$lib/stores/balance';
 	import { chainsStore } from '$lib/stores/chains';
-	import { sseStore } from '$lib/stores/sse'; // 引入 SSE store
-	import { tweened } from 'svelte/motion'; // 引入 tweened 用於動畫
-	import { cubicOut } from 'svelte/easing'; // 引入緩動函數
+	import { sseStore } from '$lib/stores/sse';
+	import { tweened } from 'svelte/motion';
+	import { cubicOut } from 'svelte/easing';
 	import ChainSelector from './ChainSelector.svelte';
 	import AddressInput from './AddressInput.svelte';
 	import SavedAddresses from './SavedAddresses.svelte';
+	import type { BalanceResponse } from '$lib/api';
+	import { getBalance } from '$lib/api';
+	import { formatIPFSUrl } from '$lib/utils/ipfs';
 
-	// 獲取資產數據
-	let assets: { name: string; value: number; change: number; icon: string }[] = [];
+	// 資產數據狀態
+	let assets: {
+		name: string;
+		value: number;
+		change: number;
+		icon: string;
+		tokenBalance: number;
+	}[] = [];
 	let totalValue = 0;
 	let totalChange = 0;
 	let nftCount = 0;
+
+	// 目前選中的區塊鏈和地址
+	let currentChain = 'ethereum';
+	let currentAddress = '0x28c6c06298d514db089934071355e5743bf21d60';
+
+	// 數據狀態
+	let balanceData: BalanceResponse | null = null;
+	let previousBalanceData: BalanceResponse | null = null;
+	let isLoading = false;
+	let error = '';
+	let isAnimating = true;
+
+	// SSE 狀態
+	let sseStatus = 'OFFLINE';
+	let lastHeartbeat = 0;
+	let sseStatusSubscription: () => void;
+	let sseCheckInterval: ReturnType<typeof setInterval> | null = null;
+	let sseReconnectTimer: ReturnType<typeof setTimeout> | null = null;
+	let visibilityChangeHandler: (() => void) | null = null;
+	let networkChangeHandler: (() => void) | null = null;
 
 	// 創建 tweened 值用於餘額變化動畫
 	const tTotalValue = tweened(0, {
@@ -30,106 +59,439 @@
 	};
 	let tAssetValues: AssetTweened = {};
 
-	// 監聽 balanceStore 的變化
-	const unsubscribe = balanceStore.subscribe(
-		({ data, previousData, isLoading, error, isAnimating }) => {
-			if (data) {
-				// 處理原生代幣
-				const nativeAsset = {
-					name: data.nativeBalance.symbol,
-					value: data.nativeBalance.usd,
-					change: 0, // API 沒有提供變化百分比，設為 0
-					icon: getIconForToken(data.nativeBalance.symbol)
-				};
+	/**
+	 * 獲取餘額數據
+	 */
+	async function fetchBalance(chain?: string, address?: string) {
+		try {
+			isLoading = true;
+			error = '';
 
-				// 處理 ERC20 代幣
-				const tokenAssets = data.tokens.slice(0, 3).map((token) => ({
-					name: token.symbol,
-					value: token.usd,
-					change: 0, // API 沒有提供變化百分比，設為 0
-					icon: getIconForToken(token.symbol)
-				}));
+			// 使用提供的參數或當前值
+			const chainToUse = chain || currentChain;
+			const addressToUse = address || currentAddress;
 
-				// 組合資產列表（原生代幣 + 最多 3 個 ERC20 代幣）
-				assets = [nativeAsset, ...tokenAssets];
+			// 檢查地址格式
+			if (!addressToUse || !/^0x[a-fA-F0-9]{40}$/.test(addressToUse)) {
+				throw new Error('無效的錢包地址格式');
+			}
 
-				// 計算總價值（原生代幣 + 所有 ERC20 代幣）
-				const newTotalValue =
-					data.nativeBalance.usd + data.tokens.reduce((sum, token) => sum + token.usd, 0);
+			console.log(`正在獲取鏈 ${chainToUse} 地址 ${addressToUse} 的餘額...`);
+			console.log(`請求URL: /api/balances/${chainToUse}/${addressToUse}`);
 
-				// 如果是加載新數據且啟用動畫
-				if (isAnimating && previousData) {
-					// 使用 tweened 進行過渡動畫
-					tTotalValue.set(newTotalValue);
+			// 更新 balanceStore 中的鏈和地址
+			balanceStore.setChain(chainToUse);
+			balanceStore.setAddress(addressToUse);
 
-					// 為每個資產設置動畫
-					assets.forEach((asset) => {
-						if (!tAssetValues[asset.name]) {
-							const assetTweened = tweened(asset.value, {
-								duration: 1500,
-								easing: cubicOut
-							});
+			// 通過 balanceStore 獲取數據
+			const data = await balanceStore.fetchBalance();
 
-							// 儲存資產的當前值和 tweened 對象
-							tAssetValues[asset.name] = {
-								value: asset.value,
-								tweened: assetTweened
-							};
+			// 驗證API返回數據
+			if (!data) {
+				throw new Error('API返回空數據');
+			}
 
-							// 建立訂閱以更新值
-							assetTweened.subscribe((value) => {
-								if (tAssetValues[asset.name]) {
-									tAssetValues[asset.name].value = value;
-								}
-							});
-						} else {
-							// 更新現有 tweened 值
-							tAssetValues[asset.name].tweened.set(asset.value);
-						}
-					});
+			// 記錄返回數據以便調試
+			console.log('API返回的原始餘額數據:', JSON.stringify(data));
+			console.log(`原生代幣: ${data.nativeBalance.symbol}, 餘額: ${data.nativeBalance.balance}`);
+			console.log(`發現 ${data.tokens.length} 個ERC20代幣, ${data.nfts.length} 個NFT`);
 
-					// 動畫完成後清除標記
-					setTimeout(() => {
-						balanceStore.setAnimationComplete();
-					}, 1500);
-				} else {
-					// 無動畫時直接設置
-					tTotalValue.set(newTotalValue, { duration: 0 });
-					assets.forEach((asset) => {
-						if (!tAssetValues[asset.name]) {
-							const assetTweened = tweened(asset.value, { duration: 0 });
+			// 保存當前數據為前一個數據（用於動畫）
+			const shouldAnimate = !!(
+				balanceData &&
+				data &&
+				JSON.stringify(balanceData) !== JSON.stringify(data)
+			);
 
-							// 儲存資產的當前值和 tweened 對象
-							tAssetValues[asset.name] = {
-								value: asset.value,
-								tweened: assetTweened
-							};
+			if (shouldAnimate) {
+				previousBalanceData = balanceData;
+			}
 
-							// 建立訂閱以更新值
-							assetTweened.subscribe((value) => {
-								if (tAssetValues[asset.name]) {
-									tAssetValues[asset.name].value = value;
-								}
-							});
-						} else {
-							// 直接更新值
-							tAssetValues[asset.name].tweened.set(asset.value, { duration: 0 });
-						}
-					});
+			// 設置新數據
+			balanceData = data;
+			isAnimating = shouldAnimate;
+
+			// 清除錯誤
+			error = '';
+
+			// 更新UI
+			updateBalanceUI(data, shouldAnimate);
+
+			return data;
+		} catch (err) {
+			error = err instanceof Error ? err.message : '獲取餘額失敗';
+			console.error('獲取餘額失敗:', err);
+
+			// 清空資產列表防止顯示舊數據
+			assets = [];
+			balanceData = null;
+
+			return null;
+		} finally {
+			isLoading = false;
+		}
+	}
+
+	/**
+	 * 安全地將代幣餘額從字符串轉換為數字
+	 * @param balance 餘額字符串
+	 * @param decimals 小數位數
+	 * @returns 轉換後的數字
+	 */
+	function safeParseTokenBalance(balance: string, decimals: number): number {
+		if (!balance || balance === '0') return 0;
+
+		try {
+			// 首先檢查輸入是否有效
+			if (typeof balance !== 'string' || balance.trim() === '') {
+				console.warn('無效的餘額格式:', balance);
+				return 0;
+			}
+
+			// 處理科學記數法
+			if (balance.includes('e')) {
+				const [mantissa, exponent] = balance.split('e');
+				const expandedNumber = parseFloat(mantissa) * Math.pow(10, parseInt(exponent));
+				return expandedNumber / Math.pow(10, decimals);
+			}
+
+			// 優先使用BigInt來處理大數值(如果環境支持)
+			if (typeof BigInt !== 'undefined') {
+				try {
+					// 移除任何前綴的 '0x' 或 非數字字符
+					const cleanedBalance = balance.replace(/^0x|[^0-9]/g, '');
+
+					// 如果清理後為空，返回0
+					if (!cleanedBalance) return 0;
+
+					const balanceBigInt = BigInt(cleanedBalance);
+					const divisorBigInt = BigInt(10 ** decimals);
+
+					// 處理零值情況
+					if (balanceBigInt === 0n) return 0;
+
+					const integerPart = balanceBigInt / divisorBigInt;
+					const fractionalPart = balanceBigInt % divisorBigInt;
+
+					// 計算小數部分長度 (與小數位數匹配)
+					const fractionalPartStr = fractionalPart.toString().padStart(decimals, '0');
+
+					// 構建完整數字字符串
+					const fullNumberStr = `${integerPart}.${fractionalPartStr}`;
+
+					// 轉換為浮點數
+					return parseFloat(fullNumberStr);
+				} catch (e) {
+					console.warn('BigInt轉換失敗，回退到浮點數處理:', e, balance);
 				}
+			}
 
-				totalValue = newTotalValue;
+			// 備用方法：直接使用浮點數處理
+			const balanceNum = parseFloat(balance);
+			if (isNaN(balanceNum)) {
+				console.warn('餘額不是數字:', balance);
+				return 0;
+			}
 
-				// 獲取 NFT 數量
-				nftCount = data.nfts.length;
+			return balanceNum / Math.pow(10, decimals);
+		} catch (error) {
+			console.error('餘額轉換出錯:', error, { balance, decimals });
+			return 0;
+		}
+	}
+
+	/**
+	 * 根據餘額數據更新UI
+	 */
+	function updateBalanceUI(data: BalanceResponse, animate: boolean) {
+		if (!data) {
+			console.warn('沒有餘額數據可供處理');
+			return;
+		}
+
+		console.log('處理餘額數據:', JSON.stringify(data.nativeBalance));
+
+		// 記錄原始餘額數值以便調試
+		console.log(
+			`原始餘額字符串: "${data.nativeBalance.balance}", 小數位: ${data.nativeBalance.decimals}`
+		);
+
+		// 處理原生代幣
+		const nativeTokenBalance = safeParseTokenBalance(
+			data.nativeBalance.balance,
+			data.nativeBalance.decimals
+		);
+
+		console.log('轉換後的原生代幣餘額:', nativeTokenBalance);
+
+		if (nativeTokenBalance > 0) {
+			console.log(`原生代幣餘額 > 0: ${nativeTokenBalance} ${data.nativeBalance.symbol}`);
+		} else {
+			console.log(`原生代幣餘額為零或未定義`);
+		}
+
+		const nativeAsset = {
+			name: data.nativeBalance.symbol,
+			value: data.nativeBalance.usd || 0,
+			tokenBalance: nativeTokenBalance,
+			change: 0,
+			icon: getIconForToken(data.nativeBalance.symbol)
+		};
+
+		// 處理 ERC20 代幣
+		const tokenAssets = data.tokens.slice(0, 3).map((token) => {
+			const tokenBalance = safeParseTokenBalance(token.balance, token.decimals);
+			return {
+				name: token.symbol,
+				value: token.usd || 0,
+				tokenBalance: tokenBalance,
+				change: 0,
+				icon: getIconForToken(token.symbol)
+			};
+		});
+
+		// 組合資產列表
+		assets = [nativeAsset, ...tokenAssets];
+		console.log('更新後的資產列表:', assets);
+
+		// 計算總價值（原生代幣 + 所有 ERC20 代幣）
+		const newTotalValue =
+			data.nativeBalance.usd + data.tokens.reduce((sum, token) => sum + token.usd, 0);
+
+		// 如果是加載新數據且啟用動畫
+		if (animate && previousBalanceData) {
+			// 使用 tweened 進行過渡動畫
+			tTotalValue.set(newTotalValue);
+
+			// 為每個資產設置動畫
+			assets.forEach((asset) => {
+				if (!tAssetValues[asset.name]) {
+					const assetTweened = tweened(asset.value, {
+						duration: 1500,
+						easing: cubicOut
+					});
+
+					// 儲存資產的當前值和 tweened 對象
+					tAssetValues[asset.name] = {
+						value: asset.value,
+						tweened: assetTweened
+					};
+
+					// 建立訂閱以更新值（這個仍然是必要的）
+					assetTweened.subscribe((value) => {
+						if (tAssetValues[asset.name]) {
+							tAssetValues[asset.name].value = value;
+						}
+					});
+				} else {
+					// 更新現有 tweened 值
+					tAssetValues[asset.name].tweened.set(asset.value);
+				}
+			});
+
+			// 動畫完成後清除標記
+			setTimeout(() => {
+				isAnimating = false;
+				previousBalanceData = null;
+			}, 1500);
+		} else {
+			// 無動畫時直接設置
+			tTotalValue.set(newTotalValue, { duration: 0 });
+			assets.forEach((asset) => {
+				if (!tAssetValues[asset.name]) {
+					const assetTweened = tweened(asset.value, { duration: 0 });
+
+					// 儲存資產的當前值和 tweened 對象
+					tAssetValues[asset.name] = {
+						value: asset.value,
+						tweened: assetTweened
+					};
+
+					// 建立訂閱以更新值（這個仍然是必要的）
+					assetTweened.subscribe((value) => {
+						if (tAssetValues[asset.name]) {
+							tAssetValues[asset.name].value = value;
+						}
+					});
+				} else {
+					// 直接更新值
+					tAssetValues[asset.name].tweened.set(asset.value, { duration: 0 });
+				}
+			});
+		}
+
+		totalValue = newTotalValue;
+
+		// 獲取 NFT 數量
+		nftCount = data.nfts.length;
+	}
+
+	/**
+	 * 更新區塊鏈
+	 */
+	function updateChain(chain: string) {
+		console.log(`切換鏈至: ${chain}`);
+
+		// 確保鏈ID格式一致 - 處理測試鏈格式
+		let chainId = chain;
+
+		// 檢查鏈ID是否包含測試網標識
+		const isTestnet = chain.includes('_') || chain.toLowerCase().includes('test');
+		if (isTestnet) {
+			console.log(`偵測到測試鏈格式: ${chain}`);
+		}
+
+		currentChain = chainId;
+
+		// 先清空當前餘額數據，避免顯示錯誤數據
+		balanceData = null;
+		previousBalanceData = null;
+		isAnimating = false;
+		assets = []; // 清空資產列表
+
+		// 重置錯誤狀態
+		error = '';
+
+		// 獲取該鏈上最後使用的地址
+		if (typeof window !== 'undefined') {
+			const savedAddresses = localStorage.getItem('savedAddresses');
+			if (savedAddresses) {
+				try {
+					const addresses = JSON.parse(savedAddresses);
+
+					// 嘗試精確匹配
+					let addressForChain = addresses.find((a: any) => a.chain === chainId);
+
+					// 如果沒找到，試著用前綴匹配（對測試鏈有幫助）
+					if (!addressForChain && isTestnet) {
+						// 從測試鏈ID中提取主網ID
+						let mainChain = chainId;
+						if (chainId.includes('_')) {
+							mainChain = chainId.split('_')[0];
+						} else if (chainId.toLowerCase().includes('testnet')) {
+							// 處理帶有testnet字樣的鏈ID
+							mainChain = chainId.toLowerCase().replace('testnet', '').trim();
+						} else if (chainId.toLowerCase().includes('test')) {
+							// 處理帶有test字樣的鏈ID
+							mainChain = chainId.toLowerCase().replace('test', '').trim();
+						}
+
+						console.log(`嘗試使用主網 ${mainChain} 的地址`);
+						addressForChain = addresses.find(
+							(a: any) => a.chain === mainChain || a.chain.startsWith(mainChain + '_')
+						);
+					}
+
+					if (addressForChain) {
+						currentAddress = addressForChain.address;
+						console.log(`找到該鏈儲存的地址: ${currentAddress}`);
+					} else {
+						console.log(`沒有找到${chainId}的已保存地址，使用當前地址: ${currentAddress}`);
+					}
+				} catch (err) {
+					console.error('解析保存的地址失敗:', err);
+				}
 			}
 		}
-	);
 
-	// 監聽 SSE 狀態
-	const unsubscribeSSE = sseStore.subscribe((state) => {
-		// 可以在這裡處理 SSE 狀態變化的邏輯
-	});
+		// 延遲一下再獲取餘額，確保UI已更新
+		setTimeout(() => {
+			// 標記為加載中
+			isLoading = true;
+
+			// 更新 balanceStore 中的鏈和地址
+			balanceStore.setChain(chainId);
+			balanceStore.setAddress(currentAddress);
+
+			// 重新獲取餘額
+			console.log(`正在重新獲取 ${chainId} 鏈上 ${currentAddress} 的餘額...`);
+			balanceStore
+				.fetchBalance()
+				.then((data) => {
+					// balanceStore 訂閱會處理數據更新
+					isLoading = false;
+				})
+				.catch((err) => {
+					error = err instanceof Error ? err.message : '獲取餘額失敗';
+					isLoading = false;
+				});
+		}, 100);
+	}
+
+	/**
+	 * 手動刷新餘額
+	 */
+	function refreshBalance() {
+		console.log(`手動刷新餘額: 鏈=${currentChain}, 地址=${currentAddress}`);
+		// 標記為加載中
+		isLoading = true;
+		// 清除錯誤
+		error = '';
+
+		// 添加按鈕旋轉動畫
+		const refreshBtn = document.querySelector('.refresh-btn');
+		if (refreshBtn) {
+			refreshBtn.classList.add('spinning');
+		}
+
+		// 延遲一下再獲取餘額，確保UI已更新
+		setTimeout(() => {
+			// 使用 balanceStore 獲取餘額，這樣 SSE 更新時能自動同步
+			balanceStore.setChain(currentChain);
+			balanceStore.setAddress(currentAddress);
+			balanceStore
+				.fetchBalance()
+				.then((data) => {
+					// 因為已經訂閱了 balanceStore，這裡不需要重複處理數據
+					isLoading = false;
+				})
+				.catch((err) => {
+					error = err instanceof Error ? err.message : '獲取餘額失敗';
+					isLoading = false;
+				})
+				.finally(() => {
+					// 移除旋轉效果
+					if (refreshBtn) {
+						setTimeout(() => {
+							refreshBtn.classList.remove('spinning');
+						}, 500);
+					}
+				});
+		}, 100);
+	}
+
+	/**
+	 * 更新地址
+	 */
+	function updateAddress(address: string) {
+		currentAddress = address;
+		// 先清空當前餘額數據，避免顯示錯誤數據
+		balanceData = null;
+		previousBalanceData = null;
+		isAnimating = false;
+		assets = []; // 清空資產列表
+
+		// 標記為加載中
+		isLoading = true;
+		// 清除錯誤
+		error = '';
+
+		// 更新 balanceStore 中的地址
+		balanceStore.setAddress(address);
+
+		// 重新獲取餘額
+		console.log(`正在獲取 ${currentChain} 鏈上新地址 ${address} 的餘額...`);
+		balanceStore
+			.fetchBalance()
+			.then((data) => {
+				// balanceStore 訂閱會處理數據更新
+				isLoading = false;
+			})
+			.catch((err) => {
+				error = err instanceof Error ? err.message : '獲取餘額失敗';
+				isLoading = false;
+			});
+	}
 
 	// 根據代幣符號返回圖標
 	function getIconForToken(symbol: string): string {
@@ -145,33 +507,206 @@
 		return icons[symbol] || '🪙';
 	}
 
-	let isAnimating = true;
+	// 連接 SSE
+	function connectSSE() {
+		if (typeof window === 'undefined') return;
+
+		console.log('正在連接 SSE...');
+
+		// 訂閱 SSE 狀態
+		sseStatusSubscription = sseStore.subscribe((state) => {
+			sseStatus = state.status;
+			lastHeartbeat = state.lastHeartbeat;
+			console.log(`SSE 狀態變更: ${state.status}`);
+
+			// 當 SSE 連接完成，如果已經有餘額數據，更新狀態 UI
+			if (state.status === 'ONLINE' && balanceData && currentChain && currentAddress) {
+				console.log('SSE 連接成功，已有餘額數據');
+			}
+
+			// 如果收到 SSE 緩存失效事件，balanceStore 會自動更新
+			// 這裡可以設置監聽器來監聽 balanceStore 的變化
+
+			// 如果發生錯誤，顯示在 UI 上並嘗試重連
+			if (state.status === 'ERROR' && state.lastError) {
+				console.error(`SSE 連接錯誤: ${state.lastError}`);
+				error = `SSE 連接錯誤: ${state.lastError}`; // 更新UI錯誤狀態
+
+				// 5秒後清除錯誤訊息
+				setTimeout(() => {
+					if (error.startsWith('SSE 連接錯誤')) {
+						error = '';
+					}
+				}, 5000);
+
+				// 如果還沒有設置重連定時器，設置一個（除了正常的連接重試外，額外的保障）
+				if (!sseReconnectTimer) {
+					console.log('設置額外的 SSE 重連定時器 (60秒後)');
+					sseReconnectTimer = setTimeout(() => {
+						sseReconnectTimer = null;
+						if (sseStatus !== 'ONLINE') {
+							console.log('執行額外的 SSE 重連');
+							sseStore.connect();
+						}
+					}, 60000); // 60秒後重試
+				}
+			}
+
+			// 如果連接成功，取消重連定時器
+			if (state.status === 'ONLINE' && sseReconnectTimer) {
+				console.log('SSE 連接成功，取消重連定時器');
+				clearTimeout(sseReconnectTimer);
+				sseReconnectTimer = null;
+			}
+		});
+
+		// 訂閱 balanceStore 變化
+		balanceStore.subscribe((state) => {
+			// 如果 balanceStore 中的數據更新了，則更新組件數據
+			if (
+				state.data &&
+				(!balanceData || JSON.stringify(state.data) !== JSON.stringify(balanceData))
+			) {
+				console.log('檢測到 balanceStore 數據更新，自動同步餘額數據');
+				balanceData = state.data;
+				updateBalanceUI(state.data, state.isAnimating);
+			}
+		});
+
+		// 啟動 SSE 連接
+		sseStore.connect();
+
+		// 添加頁面可見性變更監聽器
+		if (typeof document !== 'undefined') {
+			visibilityChangeHandler = () => {
+				if (document.visibilityState === 'visible') {
+					// 當頁面變為可見時，檢查並重連 SSE
+					console.log('頁面變為可見，檢查 SSE 連接狀態');
+					if (sseStatus !== 'ONLINE' && sseStatus !== 'CONNECTING') {
+						console.log('重新連接 SSE');
+						sseStore.connect();
+					} else {
+						console.log('SSE 已連接或正在連接中');
+					}
+				}
+			};
+
+			document.addEventListener('visibilitychange', visibilityChangeHandler);
+		}
+
+		// 添加網絡狀態變更監聽器
+		if (typeof window !== 'undefined') {
+			networkChangeHandler = () => {
+				// 當網絡恢復時，嘗試重連 SSE
+				if (navigator.onLine) {
+					console.log('網絡連接恢復，檢查 SSE 連接狀態');
+					if (sseStatus !== 'ONLINE' && sseStatus !== 'CONNECTING') {
+						console.log('重新連接 SSE');
+						sseStore.connect();
+					}
+				} else {
+					console.log('網絡連接斷開');
+					// 網絡斷開時，不需要主動斷開 SSE，讓它自己處理錯誤
+				}
+			};
+
+			window.addEventListener('online', networkChangeHandler);
+			window.addEventListener('offline', networkChangeHandler);
+		}
+	}
+
+	/**
+	 * 斷開 SSE 連接
+	 */
+	function disconnectSSE() {
+		console.log('斷開 SSE 連接');
+
+		// 取消訂閱
+		if (sseStatusSubscription) {
+			sseStatusSubscription();
+		}
+
+		// 斷開連接
+		sseStore.disconnect();
+
+		// 更新狀態
+		sseStatus = 'OFFLINE';
+		lastHeartbeat = 0;
+
+		// 清除心跳檢查定時器
+		if (sseCheckInterval) {
+			clearInterval(sseCheckInterval);
+			sseCheckInterval = null;
+		}
+
+		// 清除重連定時器
+		if (sseReconnectTimer) {
+			clearTimeout(sseReconnectTimer);
+			sseReconnectTimer = null;
+		}
+
+		// 移除頁面可見性變更監聽器
+		if (typeof document !== 'undefined' && visibilityChangeHandler) {
+			document.removeEventListener('visibilitychange', visibilityChangeHandler);
+			visibilityChangeHandler = null;
+		}
+
+		// 移除網絡狀態變更監聽器
+		if (typeof window !== 'undefined' && networkChangeHandler) {
+			window.removeEventListener('online', networkChangeHandler);
+			window.removeEventListener('offline', networkChangeHandler);
+			networkChangeHandler = null;
+		}
+	}
 
 	onMount(() => {
 		// 加載資產數據
-		balanceStore.fetchBalance().catch((err) => {
-			console.error('獲取餘額失敗:', err);
-		});
-
-		// 獲取區塊鏈列表
-		chainsStore.fetchChains(true).catch((err) => {
-			console.error('獲取區塊鏈列表失敗:', err);
-		});
+		// 首次加載時直接調用 balanceStore.fetchBalance
+		console.log('初始化加載餘額數據');
+		isLoading = true;
+		balanceStore.setChain(currentChain);
+		balanceStore.setAddress(currentAddress);
+		balanceStore
+			.fetchBalance()
+			.then(() => {
+				// 數據會通過訂閱處理
+				isLoading = false;
+			})
+			.catch((err) => {
+				error = err instanceof Error ? err.message : '獲取餘額失敗';
+				isLoading = false;
+			});
 
 		// 連接 SSE
-		sseStore.connect();
+		connectSSE();
 
 		setTimeout(() => {
 			isAnimating = false;
 		}, 1500);
+
+		// 確保在瀏覽器環境中執行
+		if (typeof window !== 'undefined') {
+			// 監聽來自ChainSelector的事件
+			window.addEventListener('chainChanged', ((e: CustomEvent) => {
+				updateChain(e.detail.chain);
+			}) as EventListener);
+
+			// 監聽來自AddressInput的事件
+			window.addEventListener('addressChanged', ((e: CustomEvent) => {
+				updateAddress(e.detail.address);
+			}) as EventListener);
+		}
 	});
 
 	onDestroy(() => {
-		// 取消訂閱避免記憶體洩漏
-		unsubscribe();
-		unsubscribeSSE();
 		// 斷開 SSE 連接
-		sseStore.disconnect();
+		disconnectSSE();
+
+		// 移除事件監聽
+		if (typeof window !== 'undefined') {
+			window.removeEventListener('chainChanged', (() => {}) as EventListener);
+			window.removeEventListener('addressChanged', (() => {}) as EventListener);
+		}
 	});
 
 	// 3D 網格效果參數
@@ -187,13 +722,15 @@
 	}
 
 	onMount(() => {
-		windowX = window.innerWidth;
-		windowY = window.innerHeight;
-
-		window.addEventListener('resize', () => {
+		if (typeof window !== 'undefined') {
 			windowX = window.innerWidth;
 			windowY = window.innerHeight;
-		});
+
+			window.addEventListener('resize', () => {
+				windowX = window.innerWidth;
+				windowY = window.innerHeight;
+			});
+		}
 	});
 
 	// 更新時間
@@ -206,32 +743,54 @@
 	setInterval(updateTime, 1000);
 
 	// 獲取 SSE 狀態文字
-	$: sseStatus =
-		$sseStore.status === 'ONLINE'
-			? 'ONLINE'
-			: $sseStore.status === 'ERROR'
-				? 'ERROR'
-				: $sseStore.status === 'CONNECTING'
-					? 'CONNECTING'
-					: 'OFFLINE';
-
-	// 添加心跳時間格式化
-	$: heartbeatTime = $sseStore.lastHeartbeat
-		? new Date($sseStore.lastHeartbeat).toLocaleTimeString()
-		: '無';
-
-	// 整合系統狀態
-	$: systemStatus = $balanceStore.isLoading
+	$: systemStatus = isLoading
 		? 'LOADING'
-		: $balanceStore.error
+		: error
 			? 'ERROR'
-			: $sseStore.status === 'ERROR'
+			: sseStatus === 'ERROR'
 				? 'ERROR'
-				: $sseStore.status === 'CONNECTING'
+				: sseStatus === 'CONNECTING'
 					? 'CONNECTING'
-					: $sseStore.status === 'ONLINE'
+					: sseStatus === 'ONLINE'
 						? 'ONLINE'
 						: 'OFFLINE';
+
+	// 添加心跳時間格式化
+	$: heartbeatTime = lastHeartbeat > 0 ? new Date(lastHeartbeat).toLocaleTimeString() : '無';
+
+	// 格式化顯示代幣餘額
+	function formatTokenBalance(balance: number, symbol: string): string {
+		if (balance === 0) {
+			return `0 ${symbol}`;
+		}
+
+		// 處理極小值
+		if (balance > 0 && balance < 0.000001) {
+			return `${balance.toExponential(4)} ${symbol}`;
+		}
+
+		// 根據數值大小動態調整小數位數
+		let decimals = 6; // 默認小數位
+
+		if (balance >= 1000) {
+			// 大數值使用較少小數位
+			decimals = 2;
+		} else if (balance >= 1) {
+			// 中等數值使用4位小數
+			decimals = 4;
+		} else if (balance < 0.001) {
+			// 非常小的值使用8位小數
+			decimals = 8;
+		}
+
+		// 去除尾部多餘的0
+		const formatted = balance.toFixed(decimals).replace(/\.?0+$/, '');
+
+		// 如果小數點後全是0，則去除小數點
+		const finalFormatted = formatted.endsWith('.') ? formatted.slice(0, -1) : formatted;
+
+		return `${finalFormatted} ${symbol}`;
+	}
 </script>
 
 <svelte:window on:mousemove={handleMouseMove} />
@@ -246,12 +805,9 @@
 	<!-- 主標題區 -->
 	<div class="relative z-20 mb-12 py-8 text-center">
 		<div class="relative inline-block">
-			<h1
-				class="relative mb-4 text-4xl font-bold tracking-wider sm:text-6xl"
-				style="text-shadow: 0 0 15px rgba(185, 103, 255, 0.5);"
-			>
+			<h1 class="relative mb-4 text-4xl font-bold tracking-wider sm:text-6xl">
 				<span
-					class="animate-pulse bg-gradient-to-r from-[#ff71ce] via-[#b967ff] to-[#01cdfe] bg-clip-text font-['Bodoni_Moda',serif] text-transparent"
+					class="font-display drop-shadow-glow bg-gradient-to-r from-[var(--vwave-pink)] to-[var(--vwave-cyan)] bg-clip-text text-transparent transition-all duration-300 hover:scale-105 hover:drop-shadow-[0_0_20px_rgba(255,113,206,0.7)]"
 				>
 					ONEKEY BALANCE
 				</span>
@@ -268,11 +824,11 @@
 				class:text-[#808080]={systemStatus === 'OFFLINE'}
 			>
 				{systemStatus}
-				{#if systemStatus === 'ERROR' && ($balanceStore.error || $sseStore.lastError)}
-					({$balanceStore.error || $sseStore.lastError})
+				{#if systemStatus === 'ERROR' && error}
+					({error})
 				{/if}
 			</span>
-			{#if $sseStore.lastHeartbeat > 0}
+			{#if lastHeartbeat > 0}
 				<span class="heart-icon text-[#05ffa1]">♥</span>
 				<span class="font-['MS_Gothic',monospace] text-xs text-[#fffb96]">{heartbeatTime}</span>
 			{/if}
@@ -289,15 +845,114 @@
 				<h2 class="glow-text font-['Bodoni_Moda',serif] text-xl text-[#ff71ce]">
 					選擇區塊鏈與地址
 				</h2>
-				<ChainSelector />
+				<ChainSelector {currentChain} on:chainChange={(e) => updateChain(e.detail.chain)} />
 			</div>
 
 			<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
 				<div>
-					<AddressInput />
+					<AddressInput
+						{currentAddress}
+						{currentChain}
+						on:addressChange={(e) => updateAddress(e.detail.address)}
+						on:suggestSaved={() => {
+							// 簡化處理已保存地址的提示
+							const savedAddressesContainer = document.querySelector('.saved-list');
+							if (savedAddressesContainer) {
+								savedAddressesContainer.classList.add('highlight-pulse');
+								setTimeout(() => {
+									savedAddressesContainer.classList.remove('highlight-pulse');
+								}, 2000);
+							}
+						}}
+						on:saveAddress={(e) => {
+							// 調用SavedAddresses組件中的saveAddress方法
+							const { chain, address, label } = e.detail;
+							const savedAddresses = document.querySelector('div.saved-addresses');
+
+							// 保存地址到localStorage
+							if (typeof window !== 'undefined') {
+								try {
+									// 獲取當前保存的地址列表
+									const savedData = localStorage.getItem('savedAddresses');
+									const addresses = savedData ? JSON.parse(savedData) : [];
+
+									// 檢查是否已存在
+									const exists = addresses.some(
+										(addr: any) => addr.chain === chain && addr.address === address
+									);
+
+									if (!exists) {
+										// 添加新地址
+										addresses.push({ chain, address, label });
+										// 保存回localStorage
+										localStorage.setItem('savedAddresses', JSON.stringify(addresses));
+
+										// 刷新頁面或發出事件通知SavedAddresses組件重新載入
+										window.dispatchEvent(new CustomEvent('addressesSaved'));
+
+										// 顯示成功提示
+										const notification = document.createElement('div');
+										notification.className =
+											'fixed top-4 right-4 bg-[#05ffa1]/20 text-[#05ffa1] p-4 rounded-lg z-50 animate-fadeIn';
+										notification.textContent = `地址${label ? ` "${label}" ` : ''}已成功保存!`;
+										document.body.appendChild(notification);
+
+										// 3秒後移除提示
+										setTimeout(() => {
+											notification.classList.add('animate-fadeOut');
+											setTimeout(() => notification.remove(), 500);
+										}, 3000);
+									} else {
+										// 如果地址已存在但需要更新標籤
+										const addrIndex = addresses.findIndex(
+											(addr: any) => addr.chain === chain && addr.address === address
+										);
+
+										if (addrIndex !== -1 && addresses[addrIndex].label !== label) {
+											// 更新標籤
+											addresses[addrIndex].label = label;
+											// 保存回localStorage
+											localStorage.setItem('savedAddresses', JSON.stringify(addresses));
+											// 通知更新
+											window.dispatchEvent(new CustomEvent('addressesSaved'));
+
+											// 顯示更新提示
+											const notification = document.createElement('div');
+											notification.className =
+												'fixed top-4 right-4 bg-[#01cdfe]/20 text-[#01cdfe] p-4 rounded-lg z-50 animate-fadeIn';
+											notification.textContent = `地址標籤已更新為 "${label || '無標籤'}"`;
+											document.body.appendChild(notification);
+
+											// 3秒後移除提示
+											setTimeout(() => {
+												notification.classList.add('animate-fadeOut');
+												setTimeout(() => notification.remove(), 500);
+											}, 3000);
+										}
+									}
+								} catch (err) {
+									console.error('保存地址失敗:', err);
+
+									// 顯示錯誤提示
+									const notification = document.createElement('div');
+									notification.className =
+										'fixed top-4 right-4 bg-[#ff71ce]/20 text-[#ff71ce] p-4 rounded-lg z-50';
+									notification.textContent = '保存地址失敗，請稍後重試';
+									document.body.appendChild(notification);
+
+									// 3秒後移除提示
+									setTimeout(() => notification.remove(), 3000);
+								}
+							}
+						}}
+					/>
 				</div>
 				<div>
-					<SavedAddresses />
+					<SavedAddresses
+						{currentChain}
+						{currentAddress}
+						on:addressSelect={(e) => updateAddress(e.detail.address)}
+					/>
 				</div>
 			</div>
 		</div>
@@ -312,8 +967,60 @@
 			<div class="mb-6 flex items-center justify-between">
 				<h2 class="glow-text font-['Bodoni_Moda',serif] text-[#05ffa1]">資產總覽</h2>
 				<div class="flex items-center gap-4">
+					<button
+						class="refresh-btn rounded-full bg-[#05ffa1]/20 p-2 text-[#05ffa1] transition-all hover:bg-[#05ffa1]/30"
+						on:click={refreshBalance}
+						title="刷新餘額"
+						disabled={isLoading}
+					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							width="16"
+							height="16"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+						>
+							<path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38" />
+						</svg>
+					</button>
+
+					<!-- SSE 連接重連按鈕 -->
+					{#if sseStatus === 'ERROR' || sseStatus === 'CLOSED'}
+						<button
+							class="reconnect-btn rounded-full bg-[#ff71ce]/20 p-2 text-[#ff71ce] transition-all hover:bg-[#ff71ce]/30"
+							on:click={() => {
+								console.log('手動重新連接 SSE');
+								// 先斷開舊連接
+								disconnectSSE();
+								// 延遲一下再重新連接，確保斷開完成
+								setTimeout(() => {
+									connectSSE();
+								}, 500);
+							}}
+							title="重新連接 SSE"
+						>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								width="16"
+								height="16"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							>
+								<path d="M2.5 2v6h6M21.5 22v-6h-6M12 7A5 5 0 0 1 17 12M12 17A5 5 0 0 1 7 12" />
+							</svg>
+						</button>
+					{/if}
+
 					<div class="wallet-address font-['MS_Gothic',monospace] text-xs text-[#fffb96]">
-						{$balanceStore.address.slice(0, 6)}...{$balanceStore.address.slice(-4)}
+						{currentAddress.slice(0, 6)}...{currentAddress.slice(-4)}
 					</div>
 					<div class="digital-time font-['MS_Gothic',monospace]">{currentTime}</div>
 				</div>
@@ -336,14 +1043,14 @@
 				</div>
 			</div>
 
-			{#if $balanceStore.isLoading}
+			{#if isLoading}
 				<div class="py-8 text-center">
 					<div class="loading-spinner mb-4"></div>
 					<p class="text-[#fffb96]">正在載入資產資料...</p>
 				</div>
-			{:else if $balanceStore.error}
+			{:else if error}
 				<div class="py-8 text-center text-[#ff71ce]">
-					<p>載入失敗: {$balanceStore.error}</p>
+					<p>載入失敗: {error}</p>
 				</div>
 			{:else}
 				<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -366,8 +1073,13 @@
 												maximumFractionDigits: 2
 											})}
 								</div>
-								<div class="mt-1 text-xs {asset.change >= 0 ? 'positive' : 'negative'}">
-									{asset.change >= 0 ? '+' : ''}{asset.change}%
+								<div class="mt-1 flex items-center justify-between">
+									<span class="text-xs text-white/80">
+										{formatTokenBalance(asset.tokenBalance, asset.name)}
+									</span>
+									<span class="text-xs {asset.change >= 0 ? 'positive' : 'negative'}">
+										{asset.change >= 0 ? '+' : ''}{asset.change}%
+									</span>
 								</div>
 							</div>
 						</div>
@@ -390,10 +1102,13 @@
 					<span class="font-['MS_Gothic',monospace] text-3xl text-[#fffb96]">{nftCount}</span>
 					<span class="font-body text-white">件藏品</span>
 				</div>
-				{#if $balanceStore.data?.nfts && $balanceStore.data.nfts.length > 0}
+				{#if balanceData?.nfts && balanceData.nfts.length > 0}
 					<div class="grid grid-cols-2 gap-3">
-						{#each $balanceStore.data.nfts.slice(0, 4) as nft, i}
-							<div class="nft-item hover-glow" style="background-image: url({nft.image || ''})">
+						{#each balanceData.nfts.slice(0, 4) as nft, i}
+							<div
+								class="nft-item hover-glow"
+								style="background-image: url({formatIPFSUrl(nft.image) || ''})"
+							>
 								{#if !nft.image}
 									<div class="nft-placeholder-text">{nft.name || `NFT #${nft.tokenId}`}</div>
 								{/if}
@@ -419,27 +1134,29 @@
 			<div class="relative p-6 sm:p-8">
 				<h2 class="glow-text font-['Bodoni_Moda',serif] text-[#01cdfe]">資產分佈</h2>
 				<div class="mt-4 space-y-3">
-					{#if $balanceStore.data}
+					{#if balanceData}
 						<div
 							class="token-stats hover-glow flex items-center gap-4 rounded-xl border border-white/20 bg-black/80 p-3 transition-all hover:translate-x-1 hover:border-[#05ffa1]"
 						>
 							<div class="token-type native">原生</div>
 							<div class="flex-1">
 								<div class="font-bold">
-									<span class="glow-text text-[#fffb96]"
-										>{$balanceStore.data.nativeBalance.symbol}:</span
-									>
+									<span class="glow-text text-[#fffb96]">{balanceData.nativeBalance.symbol}:</span>
 									<span class="price-highlight"
-										>${$balanceStore.data.nativeBalance.usd.toLocaleString(undefined, {
+										>${balanceData.nativeBalance.usd.toLocaleString(undefined, {
 											minimumFractionDigits: 2,
 											maximumFractionDigits: 2
 										})}</span
 									>
 								</div>
 								<div class="mt-1 text-xs text-[#fffb96]">
-									{parseFloat($balanceStore.data.nativeBalance.balance) /
-										10 ** $balanceStore.data.nativeBalance.decimals}
-									{$balanceStore.data.nativeBalance.symbol}
+									{formatTokenBalance(
+										safeParseTokenBalance(
+											balanceData.nativeBalance.balance,
+											balanceData.nativeBalance.decimals
+										),
+										balanceData.nativeBalance.symbol
+									)}
 								</div>
 							</div>
 						</div>
@@ -449,13 +1166,11 @@
 							<div class="token-type erc20">代幣</div>
 							<div class="flex-1">
 								<div class="font-bold text-[#fffb96]">
-									代幣數量: <span class="glow-text text-white"
-										>{$balanceStore.data.tokens.length}</span
-									>
+									代幣數量: <span class="glow-text text-white">{balanceData.tokens.length}</span>
 								</div>
 								<div class="mt-1 text-xs text-[#fffb96]">
 									總值: <span class="price-highlight"
-										>${$balanceStore.data.tokens
+										>${balanceData.tokens
 											.reduce((sum, token) => sum + token.usd, 0)
 											.toLocaleString(undefined, {
 												minimumFractionDigits: 2,
@@ -538,6 +1253,41 @@
 		100% {
 			transform: scale(1);
 			opacity: 0.8;
+		}
+	}
+
+	/* 添加刷新按鈕的動畫效果 */
+	.refresh-btn {
+		transition: transform 0.3s ease;
+	}
+
+	.refresh-btn.spinning {
+		animation: spin 1s linear infinite;
+	}
+
+	/* 重連按鈕的脈動效果 */
+	.reconnect-btn {
+		animation: pulse 2s infinite;
+	}
+
+	@keyframes pulse {
+		0% {
+			box-shadow: 0 0 0 0 rgba(255, 113, 206, 0.4);
+		}
+		70% {
+			box-shadow: 0 0 0 10px rgba(255, 113, 206, 0);
+		}
+		100% {
+			box-shadow: 0 0 0 0 rgba(255, 113, 206, 0);
+		}
+	}
+
+	@keyframes spin {
+		from {
+			transform: rotate(0deg);
+		}
+		to {
+			transform: rotate(360deg);
 		}
 	}
 </style>

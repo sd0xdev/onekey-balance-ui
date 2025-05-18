@@ -3,7 +3,14 @@
 	import { chainsStore } from '$lib/stores/chains';
 	import { fly, fade } from 'svelte/transition';
 	import { quintOut } from 'svelte/easing';
+	import type { Chain } from '$lib/api';
 
+	export let currentChain = 'ethereum'; // 接收從父元件傳入的當前選中的區塊鏈
+	let chains: Chain[] = [];
+	let isLoading = false;
+	let error = '';
+
+	// 建立事件分發器
 	const dispatch = createEventDispatcher();
 
 	// 獲取鏈的圖標
@@ -114,9 +121,26 @@
 
 	// 選擇鏈
 	function handleSelectChain(chainId: string) {
+		console.log(`選擇鏈: ${chainId}`);
+
+		// 處理測試鏈選擇
+		if (chainId.toLowerCase().includes('test') || chainId.includes('_')) {
+			console.log(`偵測到測試鏈: ${chainId}`);
+		}
+
 		chainsStore.selectChain(chainId);
 		closeDropdown();
 		selectorButton?.focus();
+
+		// 使用CustomEvent通知系統鏈已更改
+		if (typeof window !== 'undefined') {
+			console.log(`觸發chainChanged事件: ${chainId}`);
+			window.dispatchEvent(
+				new CustomEvent('chainChanged', {
+					detail: { chain: chainId }
+				})
+			);
+		}
 	}
 
 	// 創建並渲染下拉選單到 body
@@ -312,17 +336,33 @@
 		activeIndex = index;
 	}
 
+	// 處理選擇區塊鏈
+	function handleChainSelect(chainId: string) {
+		if (chainId !== currentChain) {
+			currentChain = chainId;
+			dispatch('chainChange', { chain: chainId });
+		}
+	}
+
+	// 獲取區塊鏈列表
+	async function fetchChains() {
+		try {
+			isLoading = true;
+			error = '';
+
+			// 直接從chainsStore獲取數據，但不使用訂閱
+			const result = await chainsStore.fetchChains(true);
+			chains = result;
+		} catch (err) {
+			error = err instanceof Error ? err.message : '獲取區塊鏈列表失敗';
+			console.error('獲取區塊鏈列表失敗:', err);
+		} finally {
+			isLoading = false;
+		}
+	}
+
 	onMount(() => {
-		// 獲取區塊鏈列表，包含測試網
-		chainsStore
-			.fetchChains(true)
-			.catch((err) => {
-				console.error('獲取區塊鏈列表失敗:', err);
-			})
-			.then(() => {
-				console.log('已載入的鏈列表:', $chainsStore.chains);
-				console.log('測試網數量:', $chainsStore.chains.filter((c) => c.isTestnet).length);
-			});
+		fetchChains();
 
 		// 全局事件監聽
 		document.addEventListener('click', handleDocumentClick);

@@ -19,8 +19,11 @@
 	<!-- 頂部導航 -->
 	<nav class="border-b border-[var(--vwave-pink)]/20 backdrop-blur-sm">
 		<div class="container mx-auto flex items-center justify-between px-4 py-4">
-			<a href="/" class="font-display drop-shadow-glow text-2xl text-white">
-				<span class="text-[var(--vwave-pink)]">OneKey</span> Balance
+			<a
+				href="/"
+				class="font-retro drop-shadow-glow bg-gradient-to-r from-[var(--vwave-pink)] to-[var(--vwave-cyan)] bg-clip-text text-2xl text-transparent transition-all hover:from-[var(--vwave-mint)] hover:to-[var(--vwave-lav)]"
+			>
+				<span class="font-display">OneKey</span> Balance
 			</a>
 
 			<div class="flex gap-4">

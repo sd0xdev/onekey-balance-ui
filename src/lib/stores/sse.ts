@@ -12,6 +12,11 @@ export interface SSEStore {
 	lastHeartbeat: number;
 }
 
+// 擴展 EventSourceInit 類型以支持 headers
+interface CustomEventSourceInit extends EventSourceInit {
+	headers?: Record<string, string>;
+}
+
 const initialState: SSEStore = {
 	status: 'CLOSED',
 	retryCount: 0,
@@ -88,15 +93,17 @@ function createSSEStore() {
 			};
 		});
 
-		let currentState: SSEStore;
+		// 先獲取當前狀態，然後再使用
+		let currentState: SSEStore = { ...initialState };
 		subscribe((state) => {
 			currentState = state;
 		})();
 
 		try {
 			// 創建 SSE 連接時帶上 Last-Event-ID
-			const url = new URL('http://localhost:3000/v1/api/sse/subscribe/cache');
-			const options: EventSourceInit = {};
+			const baseUrl = import.meta.env.PUBLIC_API_BASE || '/api';
+			const url = new URL(`${baseUrl}/sse/subscribe/cache`, window.location.origin);
+			const options: CustomEventSourceInit = {};
 
 			// 如果有上次的事件 ID，添加到請求頭中
 			if (currentState.lastEventId) {
@@ -123,7 +130,7 @@ function createSSEStore() {
 			};
 
 			// 連接錯誤時
-			sse.onerror = (error) => {
+			sse.onerror = () => {
 				update((state) => {
 					// 關閉當前連接
 					if (state.connection) {
@@ -219,12 +226,14 @@ function createSSEStore() {
 	};
 
 	// 處理 cache.invalidate 事件
-	const handleCacheInvalidation = (data: any) => {
+	const handleCacheInvalidation = (data: {
+		metadata?: { chain?: string; address?: string; chainId?: string };
+	}) => {
 		if (!data || !data.metadata) return;
 
 		// 獲取 balanceStore 中的 chain 和 address
-		let currentChain: string;
-		let currentAddress: string;
+		let currentChain = '';
+		let currentAddress = '';
 		balanceStore.subscribe((state) => {
 			currentChain = state.chain;
 			currentAddress = state.address;

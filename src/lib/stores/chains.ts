@@ -25,11 +25,11 @@ const initialState: ChainsStore = {
 	addresses: [
 		{
 			chain: 'ethereum',
-			address: '0xfcdc012650ec6125722cba6a1036554c7c0c4090',
+			address: '0x28c6c06298d514db089934071355e5743bf21d60',
 			label: '預設帳戶'
 		}
 	],
-	currentAddress: '0xfcdc012650ec6125722cba6a1036554c7c0c4090',
+	currentAddress: '0x28c6c06298d514db089934071355e5743bf21d60',
 	isLoading: false,
 	error: ''
 };
@@ -57,23 +57,43 @@ function createChainsStore() {
 
 		// 選擇區塊鏈
 		selectChain: (chainId: string) => {
-			update((state) => ({ ...state, selectedChain: chainId }));
+			console.log(`[chainsStore] 選擇鏈 ${chainId}`);
+
+			// 確保鏈ID有效 - 測試鏈特別處理
+			const normalizedChainId = chainId;
+			if (chainId.includes('_')) {
+				console.log(`[chainsStore] 處理測試鏈ID: ${chainId}`);
+			}
+
+			update((state) => ({ ...state, selectedChain: normalizedChainId }));
 
 			// 更新 balance store 中的鏈
-			balanceStore.setChain(chainId);
+			console.log(`[chainsStore] 設置 balanceStore 鏈為 ${normalizedChainId}`);
+			balanceStore.setChain(normalizedChainId);
 
 			// 找出該鏈上最後使用的地址
 			const state = get({ subscribe });
-			const addressForChain = state.addresses.find((a) => a.chain === chainId);
+			let addressForChain = state.addresses.find((a) => a.chain === normalizedChainId);
+
+			// 如果沒找到測試鏈的地址記錄，嘗試使用主網的地址
+			if (!addressForChain && normalizedChainId.includes('_')) {
+				const mainChain = normalizedChainId.split('_')[0];
+				console.log(`[chainsStore] 未找到測試鏈地址，嘗試使用主網 ${mainChain} 地址`);
+				addressForChain = state.addresses.find((a) => a.chain === mainChain);
+			}
 
 			if (addressForChain) {
 				// 更新當前地址
+				console.log(`[chainsStore] 為鏈 ${normalizedChainId} 找到地址: ${addressForChain.address}`);
 				update((state) => ({ ...state, currentAddress: addressForChain.address }));
 				// 更新 balance store 中的地址
 				balanceStore.setAddress(addressForChain.address);
+			} else {
+				console.log(`[chainsStore] 未找到鏈 ${normalizedChainId} 的保存地址`);
 			}
 
 			// 刷新餘額資訊
+			console.log(`[chainsStore] 獲取 ${normalizedChainId} 餘額`);
 			balanceStore.fetchBalance();
 		},
 

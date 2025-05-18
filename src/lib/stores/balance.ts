@@ -16,7 +16,7 @@ export interface BalanceStore {
 // 創建初始狀態
 const initialState: BalanceStore = {
 	chain: 'ethereum',
-	address: '0xfcdc012650ec6125722cba6a1036554c7c0c4090',
+	address: '0x28c6c06298d514db089934071355e5743bf21d60',
 	data: null,
 	previousData: null,
 	isLoading: false,
