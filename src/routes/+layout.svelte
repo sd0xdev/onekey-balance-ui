@@ -28,7 +28,7 @@
 
 			<div class="flex gap-4">
 				<a
-					href="https://github.com/onekey/balance"
+					href="https://github.com/sd0xdev/onekey-balance-ui"
 					target="_blank"
 					class="text-[var(--vwave-sun)] transition-colors hover:text-[var(--vwave-mint)]"
 				>
